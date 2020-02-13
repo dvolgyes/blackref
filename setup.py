@@ -5,7 +5,7 @@
 
 from setuptools import setup, find_packages
 from blackref import (__description__, __version__, __author__,
-                    __email__, __summary__, __license__)
+                      __email__, __summary__, __license__)
 
 
 requirements = [open('requirements.txt').read().split()]
@@ -24,20 +24,21 @@ setup(
         'Natural Language :: English',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     description=__summary__,
     install_requires=requirements,
     license=__license__,
     long_description=__description__,
     include_package_data=True,
-    keywords=['code formattig','latex','bibtex','biblatex'],
+    keywords=['code formattig', 'latex', 'bibtex', 'biblatex'],
     name='blackref',
     packages=find_packages(where='.'),
-#    scripts=['blackref.py'],
+    #    scripts=['blackref.py'],
     entry_points={
-          'console_scripts': [
-              'blackref = blackref.__init__:main'
-          ]},
+        'console_scripts': [
+            'blackref = blackref.__init__:main'
+        ]},
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
