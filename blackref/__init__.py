@@ -16,10 +16,7 @@ __description__ = __summary__
 
 
 def fix_wrap(text, key, indent=10, line_length=80, relax=10):
-    text = (
-        text.replace("\n", " ").replace("\r", " ").replace(
-            "\t", " ").replace("  ", " ")
-    )
+    text = ' '.join(text.split()) # removing all extra whitespaces
     wrapper = textwrap.TextWrapper()
     wrapper.width = line_length - indent
     wrapper.break_long_words = False

@@ -4,13 +4,13 @@ default:
 	@echo "There is nothing to do."
 
 test:
-	python3 blackref_cli.py test/test.bib
+	python3 blackref_cli.py tests/test.bib
 
 ci-test:
 	@make -C test-data
 	python3 -m coverage run -a --source . blackref.py
 	python3 -m coverage run -a --source . blackref.py -h
-	python3 -m coverage run -a --source . blackref.py test/test.bib
+	python3 -m coverage run -a --source . blackref.py tests/test.bib
 	@echo "Testing is finished."
 
 test-deploy:
