@@ -1,10 +1,16 @@
 # Blackref: an uncompromising BibTeX formatter
 
+Travis build: [![Build Status](https://travis-ci.org/dvolgyes/blackref.svg?branch=master)](https://travis-ci.org/dvolgyes/blackref)
+Coverage: [![Coverage Status](https://coveralls.io/repos/github/dvolgyes/blackref/badge.svg?branch=master)](https://coveralls.io/github/dvolgyes/blackref?branch=master)
+
 BibTeX files are sometimes hard to read for human beings.
 I decided to start two pet project of my own:
- - reflint for checking bibtex files, but not changing formatting
- - blackref for fixing the bibtex code style, but not changing any content
+ - reflint for checking BibTeX files, fixing fields, but not changing formatting
+ - blackref for fixing the BibTeX code style, but not changing any content
    (not counting formatting changes, e.g. ISBN formatting)
 
 Ideally, reflint fixes / warns about missing fields, incorrect values,
 and blackref formats everything nicely, but does not do any semantic changes.
+
+Both of them should run both as a command line tool or as a pre-commit hook.
+(work in progress)
