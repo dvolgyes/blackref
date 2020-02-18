@@ -56,7 +56,7 @@ def fix_wrap(text, key, indent=10, line_length=80, relax=10):
 
     if key.lower() in ["keywords", "keyword"]:
         keywords = text.strip().replace(';', ',').replace(', ', ',')
-        keywords = keywords.replace(' ', '_').split(",")
+        keywords = keywords.split(",")
         keywords = ", ".join(map(str.strip, keywords))
         parts = wrapper.wrap(keywords)
         result = f"\n{indent_text}".join(map(str.strip, parts))
