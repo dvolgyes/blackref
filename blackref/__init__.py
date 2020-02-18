@@ -145,6 +145,7 @@ def main(cli_args=None):
     parser = argparse.ArgumentParser(
         description="The uncompromising reference formatter."
     )
+
     parser.add_argument(
         "-w", "--write-back",
         dest="writeback",

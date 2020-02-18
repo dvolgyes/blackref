@@ -8,9 +8,9 @@ test:
 
 ci-test:
 	@make -C test-data
-	python3 -m coverage run -a --source . blackref.py
-	python3 -m coverage run -a --source . blackref.py -h
-	python3 -m coverage run -a --source . blackref.py tests/test.bib
+	python3 -m coverage run -a --source . blackref_cli.py
+	python3 -m coverage run -a --source . blackref_cli.py -h
+	python3 -m coverage run -a --source . blackref_cli.py tests/test.bib
 	@echo "Testing is finished."
 
 test-deploy:
