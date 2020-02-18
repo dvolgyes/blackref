@@ -7,7 +7,6 @@ test:
 	python3 blackref_cli.py tests/test.bib
 
 ci-test:
-	@make -C test-data
 	python3 -m coverage run -a --source . blackref_cli.py
 	python3 -m coverage run -a --source . blackref_cli.py -h
 	python3 -m coverage run -a --source . blackref_cli.py tests/test.bib
