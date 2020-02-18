@@ -117,6 +117,7 @@ def formatter(bib, display_order, sort):
 
     for entry in bib.entries:
         entry = fix_isbn(entry)
+        entry = fix_issn(entry)
         entry = fix_pages(entry)
         for key in entry.keys():
             entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
@@ -228,12 +229,5 @@ def main(cli_args=None):
     with lazy_open(args.src, "rt") as fh:
         bib = bibtexparser.loads(fh.read())
 
-    if args.writeback or args.output:
-        if args.output is None:
-            if args.writeback:
-                args.output = args.src
-            else:
-                args.output = sys.stderr
-
-        with lazy_open(args.output, "wt") as f:
-            f.write(formatter(bib, args.display_order, args.sort))
+    with lazy_open(args.output, "wt") as f:
+        f.write(formatter(bib, args.display_order, args.sort))
