@@ -7,7 +7,7 @@ from pathlib import Path
 import isbnlib
 import re
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 __author__ = 'David Völgyes'
 __email__ = 'david.volgyes@ieee.org'
 __license__ = 'AGPLv3'
@@ -15,8 +15,12 @@ __summary__ = 'An uncompromising BibTeX/BibLaTeX reference list formatter.'
 __description__ = __summary__
 
 
+def eprint(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
 def fix_wrap(text, key, indent=10, line_length=80, relax=10):
-    text = ' '.join(text.split()) # removing all extra whitespaces
+    text = ' '.join(text.split())  # removing all extra whitespaces
     wrapper = textwrap.TextWrapper()
     wrapper.width = line_length - indent
     wrapper.break_long_words = False
@@ -90,35 +94,21 @@ def fix_pages(entry):
     return entry
 
 
-def formatter(bib):
+def formatter(bib, display_order, sort):
     writer = bibtexparser.bwriter.BibTexWriter()
     writer.add_trailing_comma = True
-    writer.display_order = (
-        "title",
-        "booktitle",
-        "author",
-        "editor",
-        "abstract",
-        "journal",
-        "issn",
-        "year",
-        "volume",
-        "month",
-        "number",
-        "pages",
-        "publisher",
-        "address",
-        "doi",
-        "pubmedid",
-        "url",
-        "notes",
-    )
-    writer.ordering_entries_by = None
+    writer.display_order = display_order
+    writer.order_entries_by = None
     writer.align_values = 10
     writer.indent = ' '
     writer.contents = ['preambles', 'entries', 'strings']
 
-    bib.entries = sorted(bib.entries, key=lambda x: x["ID"].lower())
+    for skey in reversed(sort):
+        reverse = skey[-1] == '-'
+        if reverse:
+            skey = skey[:-1]
+        bib.entries = sorted(bib.entries,  key=lambda x: x.get(
+            skey, "").lower(), reverse=reverse)
 
     max_key_length = 0
     for entry in bib.entries:
@@ -130,7 +120,7 @@ def formatter(bib):
         entry = fix_pages(entry)
         for key in entry.keys():
             entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
-    return bibtexparser.dumps(bib, writer)
+    return writer.write(bib)
 
 
 def main(cli_args=None):
@@ -156,16 +146,10 @@ def main(cli_args=None):
         description="The uncompromising reference formatter."
     )
     parser.add_argument(
-        "-w", "--write-back", dest="writeback", action="store_true", default=False
-    )
-    parser.add_argument(
-        "-u",
-        "--utf8",
-        dest="utf8",
+        "-w", "--write-back",
+        dest="writeback",
         action="store_true",
-        default=False,
-        help="BibTeX cannot handle utf8, everything will be converted to LaTeX enconding by default. "
-        "Biber and BibLaTeX are utf8 compatible.",
+        default=False
     )
 
     parser.add_argument(
@@ -177,11 +161,61 @@ def main(cli_args=None):
         help="output file",
         default=sys.stdout,
     )
+
     parser.add_argument(
-        "src", metavar="SRC", nargs="?", type=str, help="source file", default=sys.stdin
+        "-s",
+        "--sort",
+        dest="sort",
+        metavar="KEYS",
+        type=str,
+        help="Comma separated list of BibTeX fields for sorting entries."
+             " Default: ID",
+        default='ID'
+    )
+
+    order = ",".join(("title",
+                      "booktitle",
+                      "author",
+                      "editor",
+                      "abstract",
+                      "journal",
+                      "issn",
+                      "volume",
+                      "year",
+                      "month",
+                      "number",
+                      "pages",
+                      "publisher",
+                      "address",
+                      "doi",
+                      "pubmedid",
+                      "url",
+                      "notes"))
+
+    parser.add_argument(
+        "-d",
+        "--display-order",
+        dest="display_order",
+        metavar="FIELDS",
+        type=str,
+        help=f"Order of display for BibTeX fields. Default: {order}",
+        default=order
+    )
+
+    parser.add_argument(
+        "src",
+        metavar="SRC",
+        nargs="?",
+        type=str,
+        help="source file",
+        default=sys.stdin
     )
 
     args = parser.parse_args(cli_args)
+    args.sort = tuple(x.strip() for x in args.sort.split(','))
+    args.display_order = tuple(x.strip()
+                               for x in args.display_order.split(','))
+
     if args.writeback:
         if args.output == sys.stdout and args.src != sys.stdin:
             args.output = args.src
@@ -192,42 +226,13 @@ def main(cli_args=None):
 
     with lazy_open(args.src, "rt") as fh:
         bib = bibtexparser.loads(fh.read())
-        formatted = formatter(bib)
-        print(formatted)
 
-    # ~ if args.writeback or args.output:
-        # ~ writer = bibtexparser.bwriter.BibTexWriter()
-        # ~ writer.add_trailing_comma = True
-        # ~ writer.display_order = (
-        # ~ "title",
-        # ~ "author",
-        # ~ "booktitle",
-        # ~ "editor",
-        # ~ "abstract",
-        # ~ "journal",
-        # ~ "issn",
-        # ~ "year",
-        # ~ "volume",
-        # ~ "month",
-        # ~ "number",
-        # ~ "pages",
-        # ~ "publisher",
-        # ~ "address",
-        # ~ "doi",
-        # ~ "pubmedid",
-        # ~ "url",
-        # ~ "notes",
-        # ~ )
-        # ~ writer.ordering_entries_by = None
-        # ~ writer.align_values = 10
-        # ~ writer.contents = ['preambles', 'entries','strings']
+    if args.writeback or args.output:
+        if args.output is None:
+            if args.writeback:
+                args.output = args.src
+            else:
+                args.output = sys.stderr
 
-        # ~ if args.output is None:
-        # ~ if args.writeback:
-        # ~ args.output = args.src
-        # ~ else:
-        # ~ args.output = sys.stderr
-
-        # ~ with lazy_open(args.output, "wt") as f:
-        # ~ f.write(bibtexparser.dumps(bib, writer))
-        # ~ pass
+        with lazy_open(args.output, "wt") as f:
+            f.write(formatter(bib, args.display_order, args.sort))
