@@ -1,7 +1,7 @@
 # Blackref: an uncompromising BibTeX formatter
 
 Travis build: [![Build Status](https://travis-ci.org/dvolgyes/blackref.svg?branch=master)](https://travis-ci.org/dvolgyes/blackref)
-Coverage: [![Coverage Status](https://coveralls.io/repos/github/dvolgyes/blackref/badge.svg?branch=master)](https://coveralls.io/github/dvolgyes/blackref?branch=master)
+Coverage: [![Coverage Status](https://img.shields.io/coveralls/github/dvolgyes/blackref/master)](https://img.shields.io/coveralls/github/dvolgyes/blackref/master)
 
 BibTeX files are sometimes hard to read for human beings.
 I decided to start two pet project of my own:
