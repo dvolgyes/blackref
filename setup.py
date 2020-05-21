@@ -1,16 +1,14 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """The setup script."""
 
 from setuptools import setup, find_packages
-from blackref import (__description__, __version__, __author__,
-                      __email__, __summary__, __license__)
-
 
 requirements = [open('requirements.txt').read().split()]
+setup_requirements = [open('requirements.txt').read().split()]
 
-setup_requirements = []
+from blackref import (__description__, __version__, __author__,
+                      __email__, __summary__, __license__)
 
 test_requirements = []
 

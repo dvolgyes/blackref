@@ -1,3 +1,4 @@
 bibtexparser
-pylatexenc
+configargparse
 isbnlib
+pylatexenc
