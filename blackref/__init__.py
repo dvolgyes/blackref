@@ -172,9 +172,9 @@ def formatter(bib, args):
         bib.entries = sorted(bib.entries,
                              key=lambda x: x.get(skey, '').lower(),
                              reverse=reverse)
-
-    return writer.write(bib)
-
+    if len(bib.entries)>0:
+        return writer.write(bib)
+    return ""
 
 def main(cli_args=None):
     class LazyOpen:
@@ -294,7 +294,7 @@ def main(cli_args=None):
         default=sys.stdin
     )
 
-    if cli_args is not None:
+    if cli_args is not None and len(cli_args)>0:
         args = parser.parse_args(cli_args)
     else:
         args = parser.parse_args()
