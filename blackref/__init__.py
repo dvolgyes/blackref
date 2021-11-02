@@ -14,7 +14,7 @@ except ImportError:
     sys.stderr.write('Some libraries are missing.\n')
 
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 __author__ = 'David Völgyes'
 __email__ = 'david.volgyes@ieee.org'
 __license__ = 'AGPLv3'
