@@ -11,43 +11,45 @@ try:
     from pylatexenc.latex2text import LatexNodes2Text
     from pylatexenc.latexencode import unicode_to_latex
 except ImportError:
-    sys.stderr.write('Some libraries are missing.\n')
+    sys.stderr.write("Some libraries are missing.\n")
 
 
-__version__ = '0.1.8'
-__author__ = 'David Völgyes'
-__email__ = 'david.volgyes@ieee.org'
-__license__ = 'AGPLv3'
-__summary__ = 'An uncompromising BibTeX/BibLaTeX reference list formatter.'
+__version__ = "0.1.9"
+__author__ = "David Völgyes"
+__email__ = "david.volgyes@ieee.org"
+__license__ = "AGPLv3"
+__summary__ = "An uncompromising BibTeX/BibLaTeX reference list formatter."
 __description__ = __summary__
 
 
 def eprint(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)# noqa:  T001
+    print(*args, **kwargs, file=sys.stderr)  # noqa:  T001
 
 
 def fix_paragraphs(text):
-    text = re.sub(r'(\s(?P<pattern>BACKGROUND|Background))', r'\n\n\g<pattern>', text)
-    text = re.sub(r'(\s(?P<pattern>METHODS|Methods))', r'\n\n\g<pattern>', text)
-    text = re.sub(r'(\s(?P<pattern>CONCLUSION|Conclusion))', r'\n\n\g<pattern>', text)
-    text = re.sub(r'(\s(?P<pattern>RESULTS|Results))', r'\n\n\g<pattern>', text)
+    text = re.sub(r"(\s(?P<pattern>BACKGROUND|Background))", r"\n\n\g<pattern>", text)
+    text = re.sub(r"(\s(?P<pattern>METHODS|Methods))", r"\n\n\g<pattern>", text)
+    text = re.sub(r"(\s(?P<pattern>CONCLUSION|Conclusion))", r"\n\n\g<pattern>", text)
+    text = re.sub(r"(\s(?P<pattern>RESULTS|Results))", r"\n\n\g<pattern>", text)
     return text
 
 
 def fix_wrap(text, key, indent=10, line_length=80, relax=10):
-    text = ' '.join(text.split())  # removing all extra whitespaces
+    text = " ".join(text.split())  # removing all extra whitespaces
     text = fix_paragraphs(text)
     wrapper = textwrap.TextWrapper()
     wrapper.width = line_length - indent
     wrapper.break_long_words = False
     wrapper.break_on_hyphen = False
-    indent_text = ' ' * indent
+    indent_text = " " * indent
 
-    if (key.lower() in ['abstract', 'title', 'booktitle']
-            and len(text) > wrapper.width + relax):
+    if (
+        key.lower() in ["abstract", "title", "booktitle"]
+        and len(text) > wrapper.width + relax
+    ):
         N = len(text)
         if N < 2 * line_length:
-            p = text[N // 2:].find(' ')
+            p = text[N // 2 :].find(" ")
             if p >= 0:
                 p += N // 2
                 parts = [text[:p], text[p:]]
@@ -55,63 +57,63 @@ def fix_wrap(text, key, indent=10, line_length=80, relax=10):
                 parts = wrapper.wrap(text)
         else:
             parts = wrapper.wrap(text)
-        result = f'\n{indent_text}'.join(map(str.strip, parts))
+        result = f"\n{indent_text}".join(map(str.strip, parts))
         return result
 
-    if key.lower() in ['author', 'editor']:
-        names = text.strip().split(' and ')
+    if key.lower() in ["author", "editor"]:
+        names = text.strip().split(" and ")
         N = max(map(len, map(str.strip, names)))
         padded_names = []
         for name in names:
             k = N - len(name)
-            padded_names.append(name + (' ' * k))
-        result = f'  and\n{indent_text}'.join(padded_names).strip()
+            padded_names.append(name + (" " * k))
+        result = f"  and\n{indent_text}".join(padded_names).strip()
         return result
 
-    if key.lower() in ['keywords', 'keyword']:
-        keywords = text.strip().replace(';', ',').replace(', ', ',')
-        keywords = keywords.split(',')
-        keywords = ', '.join(map(str.strip, keywords))
+    if key.lower() in ["keywords", "keyword"]:
+        keywords = text.strip().replace(";", ",").replace(", ", ",")
+        keywords = keywords.split(",")
+        keywords = ", ".join(map(str.strip, keywords))
         parts = wrapper.wrap(keywords)
-        result = f'\n{indent_text}'.join(map(str.strip, parts))
-        return result.replace('_', ' ')
+        result = f"\n{indent_text}".join(map(str.strip, parts))
+        return result.replace("_", " ")
 
     return text.strip()
 
 
 def fix_isbn(entry):
-    if 'isbn' in entry:
-        value = entry['isbn']
+    if "isbn" in entry:
+        value = entry["isbn"]
         if isbnlib.is_isbn10(value):
             value = isbnlib.to_isbn13(value)
         if not isbnlib.is_isbn13(value):
             raise Exception(f'invalid isbn in {entry["ID"]}: {entry["isbn"]}')
-        entry['isbn'] = isbnlib.mask(value, separator='-')
+        entry["isbn"] = isbnlib.mask(value, separator="-")
     return entry
 
 
 def fix_issn(entry):
-    if 'issn' in entry:
-        value = entry['issn'].replace('-', '')
-        value = value[0:4] + '-' + value[4:]
+    if "issn" in entry:
+        value = entry["issn"].replace("-", "")
+        value = value[0:4] + "-" + value[4:]
         if len(value) != 9:
             raise Exception(f'invalid issn in {entry["ID"]}: {entry["issn"]}')
-        entry['issn'] = value
+        entry["issn"] = value
     return entry
 
 
 def fix_pages(entry):
-    if 'pages' in entry:
-        value = entry['pages'].replace(' ', '')
-        re.sub(r'([^-])-([^-])', r'r\g<1>--\g<2>', value)
-        entry['pages'] = value
+    if "pages" in entry:
+        value = entry["pages"].replace(" ", "")
+        re.sub(r"([^-])-([^-])", r"r\g<1>--\g<2>", value)
+        entry["pages"] = value
     return entry
 
 
 def remove_empty_keys(entry):
     for key in list(entry.keys()):
         if entry[key] is None:
-            entry[key] = ''
+            entry[key] = ""
         v = str(entry[key]).strip()
         if len(v) == 0:
             entry.pop(key)
@@ -133,11 +135,11 @@ def fix_utf8_field(entry, field, args):
 
 
 def fix_authors(entry, args):
-    return fix_utf8_field(entry, 'author', args)
+    return fix_utf8_field(entry, "author", args)
 
 
 def fix_abstract(entry, args):
-    return fix_utf8_field(entry, 'abstract', args)
+    return fix_utf8_field(entry, "abstract", args)
 
 
 def formatter(bib, args):
@@ -146,11 +148,12 @@ def formatter(bib, args):
     writer.add_trailing_comma = True
     writer.display_order = display_order
     writer.order_entries_by = None
-    writer.align_values = 10
-    writer.indent = ' '
-    writer.contents = ['preambles', 'entries', 'strings']
+    writer.align_values = 12
+    writer.indent = " "
+    writer.contents = ["preambles", "entries", "strings"]
 
     max_key_length = 0
+    key_lens = []
     for entry in bib.entries:
         entry = remove_empty_keys(entry)
         entry = fix_authors(entry, args)
@@ -164,17 +167,21 @@ def formatter(bib, args):
     for entry in bib.entries:
         for key in entry.keys():
             entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
+            key_lens.append(len(key))
+
+    writer.align_values = max(key_lens)
 
     for skey in reversed(sort):
-        reverse = skey[-1] == '-'
+        reverse = skey[-1] == "-"
         if reverse:
             skey = skey[:-1]
-        bib.entries = sorted(bib.entries,
-                             key=lambda x: x.get(skey, '').lower(),
-                             reverse=reverse)
-    if len(bib.entries)>0:
+        bib.entries = sorted(
+            bib.entries, key=lambda x: x.get(skey, "").lower(), reverse=reverse
+        )
+    if len(bib.entries) > 0:
         return writer.write(bib)
     return ""
+
 
 def main(cli_args=None):
     class LazyOpen:
@@ -197,124 +204,128 @@ def main(cli_args=None):
             return
 
     parser = configargparse.ArgParser(
-        auto_env_var_prefix='BLACKREF_',
+        auto_env_var_prefix="BLACKREF_",
         add_env_var_help=True,
         add_config_file_help=True,
-        default_config_files=['~/.config/blackref.conf'],
-        description='The uncompromising reference formatter.'
+        default_config_files=["~/.config/blackref.conf"],
+        description="The uncompromising reference formatter.",
     )
 
     parser.add_argument(
-        '-c', '--config',
+        "-c",
+        "--config",
         is_config_file=True,
-        dest='configfile',
+        dest="configfile",
         help='Config file with "key: value" items.'
-             ' CLI options have higher precedence than config values.')
-
-    parser.add_argument(
-        '-w', '--write-back',
-        dest='writeback',
-        action='store_true',
-        help='Write modifications back to the original file.',
-        default=False
+        " CLI options have higher precedence than config values.",
     )
 
     parser.add_argument(
-        '-U', '--utf8',
-        dest='utf8',
-        metavar='FIELD[,FIELD]',
-        help='Comma separated fieldnames for UTF8 encoding. Default: abstract',
-        default='abstract'
+        "-w",
+        "--write-back",
+        dest="writeback",
+        action="store_true",
+        help="Write modifications back to the original file.",
+        default=False,
     )
 
     parser.add_argument(
-        '-L', '--latex',
-        dest='latex',
-        metavar='FIELD[,FIELD]',
-        help='Comma separated fieldnames for LaTeX encoding. Default: author,title',
-        default='author,title'
+        "-U",
+        "--utf8",
+        dest="utf8",
+        metavar="FIELD[,FIELD]",
+        help="Comma separated fieldnames for UTF8 encoding. Default: abstract",
+        default="abstract",
     )
 
     parser.add_argument(
-        '-o',
-        '--output',
-        dest='output',
-        metavar='DST',
+        "-L",
+        "--latex",
+        dest="latex",
+        metavar="FIELD[,FIELD]",
+        help="Comma separated fieldnames for LaTeX encoding. Default: author,title",
+        default="author,title",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        metavar="DST",
         type=str,
-        help='output file',
+        help="output file",
         default=sys.stdout,
     )
 
     parser.add_argument(
-        '-s',
-        '--sort',
-        dest='sort',
-        metavar='KEYS',
+        "-s",
+        "--sort",
+        dest="sort",
+        metavar="KEYS",
         type=str,
-        help='Comma separated list of BibTeX fields for sorting entries.'
-             ' Default: ID',
-        default='ID'
+        help="Comma separated list of BibTeX fields for sorting entries."
+        " Default: ID",
+        default="ID",
     )
 
-    order = ','.join(('title',
-                      'booktitle',
-                      'author',
-                      'editor',
-                      'abstract',
-                      'journal',
-                      'issn',
-                      'volume',
-                      'year',
-                      'month',
-                      'number',
-                      'pages',
-                      'publisher',
-                      'address',
-                      'doi',
-                      'pubmedid',
-                      'url',
-                      'notes'))
-
-    parser.add_argument(
-        '-d',
-        '--display-order',
-        dest='display_order',
-        metavar='FIELDS',
-        type=str,
-        help=f'Order of display for BibTeX fields. Default: {order}',
-        default=order
+    order = ",".join(
+        (
+            "title",
+            "booktitle",
+            "author",
+            "editor",
+            "abstract",
+            "journal",
+            "issn",
+            "volume",
+            "year",
+            "month",
+            "number",
+            "pages",
+            "publisher",
+            "address",
+            "doi",
+            "pubmedid",
+            "url",
+            "notes",
+        )
     )
 
     parser.add_argument(
-        'src',
-        metavar='SRC',
-        nargs='?',
+        "-d",
+        "--display-order",
+        dest="display_order",
+        metavar="FIELDS",
         type=str,
-        help='source file',
-        default=sys.stdin
+        help=f"Order of display for BibTeX fields. Default: {order}",
+        default=order,
     )
 
-    if cli_args is not None and len(cli_args)>0:
+    parser.add_argument(
+        "src", metavar="SRC", nargs="?", type=str, help="source file", default=sys.stdin
+    )
+
+    if cli_args is not None and len(cli_args) > 0:
         args = parser.parse_args(cli_args)
     else:
         args = parser.parse_args()
 
-    args.sort = tuple(x.strip() for x in args.sort.split(','))
-    args.utf8 = {x.strip() for x in args.utf8.lower().split(',')}
-    args.latex = {x.strip() for x in args.latex.lower().split(',')}
+    args.sort = tuple(x.strip() for x in args.sort.split(","))
+    args.utf8 = {x.strip() for x in args.utf8.lower().split(",")}
+    args.latex = {x.strip() for x in args.latex.lower().split(",")}
     args.utf8 = args.utf8 - args.latex
-    args.display_order = tuple(x.strip() for x in args.display_order.split(','))
+    args.display_order = tuple(x.strip() for x in args.display_order.split(","))
 
     if args.writeback:
         if args.output == sys.stdout and args.src != sys.stdin:
             args.output = args.src
 
     if args.src != sys.stdin and not Path(args.src).exists():
-        eprint(f'Invalid input file: {args.src}')
+        eprint(f"Invalid input file: {args.src}")
         sys.exit(-1)
 
-    with LazyOpen(args.src, 'rt') as fh:
+    with LazyOpen(args.src, "rt") as fh:
         bib = bibtexparser.loads(fh.read())
 
-    with LazyOpen(args.output, 'wt') as f:
+    with LazyOpen(args.output, "wt") as f:
         f.write(formatter(bib, args))
