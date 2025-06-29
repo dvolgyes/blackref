@@ -1,17 +1,79 @@
-# Blackref: an uncompromising BibTeX formatter
+# Blackref: An Uncompromising BibTeX/BibLaTeX Formatter
 
-Travis build: [![Build Status](https://travis-ci.org/dvolgyes/blackref.svg?branch=master)](https://travis-ci.org/dvolgyes/blackref)
-Coverage: [![Coverage Status](https://img.shields.io/coveralls/github/dvolgyes/blackref/master)](https://img.shields.io/coveralls/github/dvolgyes/blackref/master)
+[![PyPI version](https://img.shields.io/pypi/v/blackref.svg)](https://pypi.org/project/blackref/)
+[![License](https://img.shields.io/pypi/l/blackref.svg)](https://github.com/dvolgyes/blackref/blob/master/LICENSE.txt)
 
-BibTeX files are sometimes hard to read for human beings.
-I decided to start two pet project of my own:
+`blackref` is a command-line tool that automatically formats your BibTeX and BibLaTeX files to be consistent, readable, and clean. Inspired by the `black` code formatter for Python, it enforces a strict, opinionated style, leaving no room for configuration. This ensures that your reference files are always perfectly formatted, allowing you to focus on the content, not the style.
 
-- reflint for checking BibTeX files, fixing fields, but not changing formatting
-- blackref for fixing the BibTeX code style, but not changing any content
-  (not counting formatting changes, e.g. ISBN formatting)
+## Key Features
 
-Ideally, reflint fixes / warns about missing fields, incorrect values,
-and blackref formats everything nicely, but does not do any semantic changes.
+- **Consistent Formatting**: Automatically formats your entire BibTeX/BibLaTeX file.
+- **Entry Sorting**: Sorts the entries in your bibliography (e.g., by entry ID).
+- **Field Ordering**: Arranges the fields within each entry in a consistent, logical order.
+- **Smart Encoding**: Handles both UTF-8 and LaTeX encoding for specified fields.
+- **In-place Modification**: Can modify files directly for convenience.
+- **Unix Philosophy**: Reads from `stdin` and writes to `stdout` by default, making it easy to pipe and integrate into scripts.
 
-Both of them should run both as a command line tool or as a pre-commit hook.
-(work in progress)
+## Installation
+
+You can install `blackref` using `uv`:
+
+```bash
+uv tool install blackref
+```
+
+Alternatively, you can run it directly without installation using `uvx`:
+
+```bash
+uvx blackref my_references.bib
+```
+
+## Usage
+
+### Basic Formatting
+
+To format a file and print the result to the console:
+
+```bash
+blackref my_references.bib
+```
+
+You can also use it with pipes:
+
+```bash
+cat my_references.bib | blackref > formatted_references.bib
+```
+
+### In-place Formatting
+
+To modify a file directly (write-back mode):
+
+```bash
+blackref --write-back my_references.bib
+```
+
+### Sorting Entries
+
+You can specify which fields to sort the entries by. The default is to sort by the BibTeX entry ID (`ID`).
+
+To sort by author, then year:
+
+```bash
+blackref --sort "author,year" my_references.bib
+```
+
+### Customizing Field Display Order
+
+`blackref` uses a default order for fields within each entry. You can override this with the `--display-order` option.
+
+```bash
+blackref --display-order "author,title,year,journal" my_references.bib
+```
+
+## Complementary Tool: `reflint`
+
+For linting and checking the semantic content of your reference files (e.g., missing fields, incorrect values), check out the complementary tool, [reflint](https://github.com/dvolgyes/reflint). `reflint` fixes the content, while `blackref` fixes the style.
+
+## License
+
+`blackref` is licensed under the AGPL-3.0 License. See the [LICENSE.txt](LICENSE.txt) file for details.

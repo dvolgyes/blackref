@@ -82,12 +82,19 @@ def main(src, write_back, utf8, latex, output, sort, display_order):
         output = open(src.name, "w")
 
     # Validate input file
-    if src != sys.stdin and not Path(src.name).exists():
+    if (
+        src != sys.stdin
+        and hasattr(src, "name")
+        and src.name
+        and src.name != "<stdin>"
+        and not Path(src.name).exists()
+    ):
         click.echo(f"Invalid input file: {src.name}", err=True)
         sys.exit(-1)
 
     # Process the BibTeX file
-    bib = bibtexparser.loads(src.read())
+    content = src.read()
+    bib = bibtexparser.loads(content)
     formatted_output = formatter(
         bib, display_order_fields, sort_fields, utf8_fields, latex_fields
     )
