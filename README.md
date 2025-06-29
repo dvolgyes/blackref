@@ -5,9 +5,10 @@ Coverage: [![Coverage Status](https://img.shields.io/coveralls/github/dvolgyes/b
 
 BibTeX files are sometimes hard to read for human beings.
 I decided to start two pet project of my own:
- - reflint for checking BibTeX files, fixing fields, but not changing formatting
- - blackref for fixing the BibTeX code style, but not changing any content
-   (not counting formatting changes, e.g. ISBN formatting)
+
+- reflint for checking BibTeX files, fixing fields, but not changing formatting
+- blackref for fixing the BibTeX code style, but not changing any content
+  (not counting formatting changes, e.g. ISBN formatting)
 
 Ideally, reflint fixes / warns about missing fields, incorrect values,
 and blackref formats everything nicely, but does not do any semantic changes.

@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blackref"
+dynamic = ["version"]
+description = "An uncompromising BibTeX/BibLaTeX reference list formatter."
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+authors = [
+    { name = "David Völgyes", email = "david.volgyes@ieee.org" }
+]
+keywords = ["code formatting", "latex", "bibtex", "biblatex"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "bibtexparser",
+    "configargparse",
+    "isbnlib",
+    "pylatexenc",
+]
+
+[project.urls]
+Homepage = "https://github.com/dvolgyes/blackref"
+Repository = "https://github.com/dvolgyes/blackref"
+Issues = "https://github.com/dvolgyes/blackref/issues"
+
+[project.scripts]
+blackref = "blackref:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["blackref"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/blackref",
+    "/tests",
+    "/README.md",
+    "/LICENSE.txt",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.9.1",
+    "hatch-vcs>=0.5.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+]
