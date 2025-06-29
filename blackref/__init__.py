@@ -5,7 +5,7 @@ try:
     from pathlib import Path
     import textwrap
     import re
-    import configargparse
+    import click
     import bibtexparser
     import isbnlib
     from pylatexenc.latex2text import LatexNodes2Text
@@ -184,147 +184,119 @@ def formatter(bib, args):
     return writer.write(bib)
 
 
-def main(cli_args=None):
-    class LazyOpen:
-        def __init__(self, s, mode):
-            self.s = s
-            self.mode = mode
-            self.fh = None
+class LazyOpen:
+    def __init__(self, s, mode):
+        self.s = s
+        self.mode = mode
+        self.fh = None
 
-        def __enter__(self):
-            if isinstance(self.s, str):
-                self.fh = open(self.s, self.mode)
-            else:
-                self.fh = self.s
-            return self.fh
+    def __enter__(self):
+        if isinstance(self.s, str):
+            self.fh = open(self.s, self.mode)
+        else:
+            self.fh = self.s
+        return self.fh
 
-        def __exit__(self, *exc):
-            if isinstance(self.s, str):
-                self.fh.close()
-            return
+    def __exit__(self, *exc):
+        if isinstance(self.s, str):
+            self.fh.close()
+        return
 
-    parser = configargparse.ArgParser(
-        auto_env_var_prefix="BLACKREF_",
-        add_env_var_help=True,
-        add_config_file_help=True,
-        default_config_files=["~/.config/blackref.conf"],
-        description="The uncompromising reference formatter.",
-    )
 
-    parser.add_argument(
-        "-c",
-        "--config",
-        is_config_file=True,
-        dest="configfile",
-        help='Config file with "key: value" items.'
-        " CLI options have higher precedence than config values.",
-    )
+DEFAULT_ORDER = ",".join(
+    [
+        "title",
+        "booktitle",
+        "author",
+        "editor",
+        "abstract",
+        "journal",
+        "issn",
+        "volume",
+        "year",
+        "month",
+        "number",
+        "pages",
+        "publisher",
+        "address",
+        "doi",
+        "pubmedid",
+        "url",
+        "notes",
+    ]
+)
 
-    parser.add_argument(
-        "-w",
-        "--write-back",
-        dest="writeback",
-        action="store_true",
-        help="Write modifications back to the original file.",
-        default=False,
-    )
 
-    parser.add_argument(
-        "-U",
-        "--utf8",
-        dest="utf8",
-        metavar="FIELD[,FIELD]",
-        help="Comma separated fieldnames for UTF8 encoding. Default: abstract",
-        default="abstract",
-    )
+@click.command()
+@click.argument("src", type=click.File("r"), default=sys.stdin)
+@click.option(
+    "-w",
+    "--write-back",
+    is_flag=True,
+    help="Write modifications back to the original file.",
+)
+@click.option(
+    "-U",
+    "--utf8",
+    default="abstract",
+    help="Comma separated fieldnames for UTF8 encoding.",
+)
+@click.option(
+    "-L",
+    "--latex",
+    default="author,title",
+    help="Comma separated fieldnames for LaTeX encoding.",
+)
+@click.option(
+    "-o", "--output", type=click.File("w"), default=sys.stdout, help="Output file."
+)
+@click.option(
+    "-s",
+    "--sort",
+    default="ID",
+    help="Comma separated list of BibTeX fields for sorting entries.",
+)
+@click.option(
+    "-d",
+    "--display-order",
+    default=DEFAULT_ORDER,
+    help="Order of display for BibTeX fields.",
+)
+def main(src, write_back, utf8, latex, output, sort, display_order):
+    """The uncompromising reference formatter."""
 
-    parser.add_argument(
-        "-L",
-        "--latex",
-        dest="latex",
-        metavar="FIELD[,FIELD]",
-        help="Comma separated fieldnames for LaTeX encoding. Default: author,title",
-        default="author,title",
-    )
+    # Process arguments
+    sort_fields = tuple(x.strip() for x in sort.split(","))
+    utf8_fields = {x.strip() for x in utf8.lower().split(",")}
+    latex_fields = {x.strip() for x in latex.lower().split(",")}
+    utf8_fields = utf8_fields - latex_fields
+    display_order_fields = tuple(x.strip() for x in display_order.split(","))
 
-    parser.add_argument(
-        "-o",
-        "--output",
-        dest="output",
-        metavar="DST",
-        type=str,
-        help="output file",
-        default=sys.stdout,
-    )
+    # Handle write-back logic
+    if write_back and output == sys.stdout and src != sys.stdin:
+        output = open(src.name, "w")
 
-    parser.add_argument(
-        "-s",
-        "--sort",
-        dest="sort",
-        metavar="KEYS",
-        type=str,
-        help="Comma separated list of BibTeX fields for sorting entries. Default: ID",
-        default="ID",
-    )
-
-    order = ",".join(
-        (
-            "title",
-            "booktitle",
-            "author",
-            "editor",
-            "abstract",
-            "journal",
-            "issn",
-            "volume",
-            "year",
-            "month",
-            "number",
-            "pages",
-            "publisher",
-            "address",
-            "doi",
-            "pubmedid",
-            "url",
-            "notes",
-        )
-    )
-
-    parser.add_argument(
-        "-d",
-        "--display-order",
-        dest="display_order",
-        metavar="FIELDS",
-        type=str,
-        help=f"Order of display for BibTeX fields. Default: {order}",
-        default=order,
-    )
-
-    parser.add_argument(
-        "src", metavar="SRC", nargs="?", type=str, help="source file", default=sys.stdin
-    )
-
-    if cli_args is not None:
-        args = parser.parse_args(cli_args)
-    else:
-        args = parser.parse_args()
-
-    args.sort = tuple(x.strip() for x in args.sort.split(","))
-    args.utf8 = {x.strip() for x in args.utf8.lower().split(",")}
-    args.latex = {x.strip() for x in args.latex.lower().split(",")}
-    args.utf8 = args.utf8 - args.latex
-    args.display_order = tuple(x.strip() for x in args.display_order.split(","))
-
-    if args.writeback:
-        if args.output == sys.stdout and args.src != sys.stdin:
-            args.output = args.src
-
-    if args.src != sys.stdin and not Path(args.src).exists():
-        eprint(f"Invalid input file: {args.src}")
+    # Validate input file
+    if src != sys.stdin and not Path(src.name).exists():
+        click.echo(f"Invalid input file: {src.name}", err=True)
         sys.exit(-1)
 
-    with LazyOpen(args.src, "rt") as fh:
-        bib = bibtexparser.loads(fh.read())
+    # Create args object compatible with existing formatter
+    class Args:
+        def __init__(self):
+            self.sort = sort_fields
+            self.utf8 = utf8_fields
+            self.latex = latex_fields
+            self.display_order = display_order_fields
 
-    with LazyOpen(args.output, "wt") as f:
-        f.write(formatter(bib, args))
+    args = Args()
+
+    # Process the BibTeX file
+    bib = bibtexparser.loads(src.read())
+    formatted_output = formatter(bib, args)
+
+    output.write(formatted_output)
+
+    # Close output if we opened it for write-back
+    if write_back and output != sys.stdout:
+        output.close()
