@@ -68,12 +68,21 @@ def fix_wrap(text, key, indent=10, line_length=80, relax=10):
 
     if key.lower() in ["author", "editor"]:
         names = text.strip().split(" and ")
-        N = max(map(len, map(str.strip, names)))
+        names = [name.strip() for name in names]
+        if len(names) == 1:
+            return names[0]
+
+        author_indent = " " * (indent + 5)
+
+        N = max(map(len, names))
         padded_names = []
-        for name in names:
-            k = N - len(name)
-            padded_names.append(name + (" " * k))
-        result = f"  and\n{indent_text}".join(padded_names).strip()
+        for i, name in enumerate(names):
+            if i == len(names) - 1:  # Last name, no "and"
+                padded_names.append(name)
+            else:  # Add padding and "and"
+                k = N - len(name)
+                padded_names.append(name + (" " * k) + "  and")
+        result = f"\n{author_indent}".join(padded_names)
         return result
 
     if key.lower() in ["keywords", "keyword"]:
@@ -154,11 +163,10 @@ def formatter(bib, args):
     writer.add_trailing_comma = True
     writer.display_order = display_order
     writer.order_entries_by = None
-    writer.align_values = 10
     writer.indent = " "
     writer.contents = ["preambles", "entries", "strings"]
 
-    max_key_length = 0
+    max_key_length = 10  # Minimum alignment
     for entry in bib.entries:
         entry = remove_empty_keys(entry)
         entry = fix_authors(entry, args)
@@ -168,6 +176,9 @@ def formatter(bib, args):
         entry = fix_pages(entry)
         for key in entry.keys():
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
+
+    # Set align_values to the calculated maximum key length (minimum 10)
+    writer.align_values = max_key_length
 
     for entry in bib.entries:
         for key in entry.keys():
