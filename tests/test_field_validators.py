@@ -890,11 +890,17 @@ class TestCapitalizationRules:
         result = fix_journal_capitalization(entry)
         assert result["journal"] == "{IEEE} Transactions on Pattern Analysis"
 
-    def test_fix_journal_all_caps_protected(self):
-        """Test all-caps journal gets protected."""
+    def test_fix_journal_all_caps_multiword_warning(self):
+        """Test all-caps multi-word journal triggers warning and stays unchanged."""
         entry = {"ID": "test", "journal": "IEEE TRANSACTIONS ON PATTERN ANALYSIS"}
         result = fix_journal_capitalization(entry)
-        assert result["journal"] == "{IEEE TRANSACTIONS ON PATTERN ANALYSIS}"
+        assert result["journal"] == "IEEE TRANSACTIONS ON PATTERN ANALYSIS"  # Unchanged
+
+    def test_fix_journal_all_caps_single_word_protected(self):
+        """Test all-caps single-word journal gets protected."""
+        entry = {"ID": "test", "journal": "IEEE"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "{IEEE}"
 
     def test_fix_journal_mixed_case_words_protected(self):
         """Test mixed-case words in journal get protected."""

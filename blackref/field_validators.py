@@ -296,9 +296,17 @@ def fix_journal_capitalization(entry: dict) -> dict:
     # Check if everything is capitalized (excluding spaces and punctuation)
     letter_chars = re.findall(r"[a-zA-Z]", value)
     if letter_chars and all(c.isupper() for c in letter_chars):
-        # All caps journal - protect the entire field
-        entry["journal"] = f"{{{value}}}"
-        return entry
+        # Check if it's multi-word - if so, warn and don't edit
+        words = value.split()
+        if len(words) > 1:
+            logger.warning(
+                f"Field 'journal' in entry {entry.get('ID', 'unknown')} is entirely capitalized (multi-word): '{value}'"
+            )
+            return entry
+        else:
+            # Single word all caps journal - protect the entire field
+            entry["journal"] = f"{{{value}}}"
+            return entry
 
     # Apply normal mixed-case word protection
     entry["journal"] = _protect_mixed_case_words(value)
