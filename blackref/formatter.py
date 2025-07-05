@@ -10,6 +10,10 @@ from .field_validators import (
     fix_issn,
     fix_pages,
     fix_month,
+    fix_title_dashes,
+    fix_booktitle_dashes,
+    fix_abstract_dashes,
+    fix_doi,
 )
 from .text_utils import fix_wrap
 
@@ -61,6 +65,12 @@ def formatter(
             entry = fix_issn(entry)
             entry = fix_pages(entry)
             entry = fix_month(entry)
+            # Fix Unicode dashes in text fields
+            entry = fix_title_dashes(entry)
+            entry = fix_booktitle_dashes(entry)
+            entry = fix_abstract_dashes(entry)
+            # Fix DOI extraction from URLs
+            entry = fix_doi(entry)
         for key in entry.keys():
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
 

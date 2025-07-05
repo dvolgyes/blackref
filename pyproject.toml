@@ -25,6 +25,7 @@ dependencies = [
     "bibtexparser",
     "click>=8.2.1",
     "isbnlib",
+    "loguru>=0.7.3",
     "pylatexenc",
 ]
 

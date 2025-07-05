@@ -87,7 +87,8 @@ def main(src, write_back, formatting_mode, utf8, latex, output, sort, display_or
     sort_fields = tuple(x.strip() for x in sort.split(","))
     utf8_fields = {x.strip() for x in utf8.lower().split(",")}
     latex_fields = {x.strip() for x in latex.lower().split(",")}
-    utf8_fields = utf8_fields - latex_fields
+    # Remove UTF-8 fields from LaTeX fields to give UTF-8 precedence
+    latex_fields = latex_fields - utf8_fields
     display_order_fields = tuple(x.strip() for x in display_order.split(","))
 
     # Validate input file
@@ -101,6 +102,11 @@ def main(src, write_back, formatting_mode, utf8, latex, output, sort, display_or
         click.echo(f"Invalid input file: {src.name}", err=True)
         sys.exit(-1)
 
+    # Handle write-back logic - need to capture input filename before reassigning output
+    input_filename = None
+    if write_back and output == sys.stdout and src != sys.stdin:
+        input_filename = src.name
+
     # Process the BibTeX file
     content = src.read()
     bib = bibtexparser.loads(content)
@@ -113,10 +119,8 @@ def main(src, write_back, formatting_mode, utf8, latex, output, sort, display_or
         formatting_mode,
     )
 
-    # Handle write-back logic - need to capture input filename before reassigning output
-    input_filename = None
-    if write_back and output == sys.stdout and src != sys.stdin:
-        input_filename = src.name
+    # Open output file for writing after processing is complete
+    if input_filename:
         output = open(input_filename, "w")
 
     output.write(formatted_output)
