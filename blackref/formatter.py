@@ -4,6 +4,7 @@
 import bibtexparser
 from .field_validators import (
     remove_empty_keys,
+    fix_html_entities,
     fix_authors,
     fix_abstract,
     fix_isbn,
@@ -63,6 +64,7 @@ def formatter(
     for entry in bib.entries:
         if formatting_mode == "full":
             entry = remove_empty_keys(entry)
+            entry = fix_html_entities(entry)
             entry = fix_authors(entry, utf8_fields, latex_fields)
             entry = fix_abstract(entry, utf8_fields, latex_fields)
             entry = fix_isbn(entry)

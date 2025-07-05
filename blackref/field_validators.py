@@ -2,10 +2,293 @@
 """Field validation and fixing functions for BibTeX entries."""
 
 import re
+import html
 import isbnlib
 from pylatexenc.latex2text import LatexNodes2Text
 from pylatexenc.latexencode import unicode_to_latex
 from loguru import logger
+
+
+def fix_html_entities(entry: dict) -> dict:
+    """Convert HTML entities to appropriate LaTeX or UTF-8 equivalents in all text fields."""
+    text_fields = [
+        "title",
+        "booktitle",
+        "journal",
+        "author",
+        "editor",
+        "publisher",
+        "address",
+        "organization",
+        "school",
+        "institution",
+        "note",
+        "notes",
+        "abstract",
+        "keywords",
+        "series",
+        "chapter",
+        "edition",
+    ]
+
+    # Fields where mathematical symbols and arrows are typically inappropriate
+    title_like_fields = ["title", "booktitle", "journal"]
+
+    for field in text_fields:
+        if field in entry:
+            original_text = entry[field]
+            converted_text = _convert_html_entities(original_text)
+
+            # Check for potentially inappropriate symbols in title-like fields
+            if field in title_like_fields:
+                _check_for_inappropriate_symbols(
+                    converted_text, field, entry.get("ID", "unknown")
+                )
+
+            entry[field] = converted_text
+
+    return entry
+
+
+def _convert_html_entities(text: str) -> str:
+    """Convert HTML entities to LaTeX or UTF-8 equivalents.
+
+    Strategy:
+    1. Basic entities: &amp; &lt; &gt; -> LaTeX equivalents
+    2. Quotes: Various quote entities -> LaTeX quotes (``, '', etc.)
+    3. Typography: &ndash; &mdash; &hellip; -> LaTeX equivalents
+    4. Spacing: &nbsp; -> regular space
+    5. Accented characters: Convert to UTF-8 (é, ø, æ, etc.)
+    6. Mathematical symbols: -> LaTeX equivalents
+    7. Greek letters: -> LaTeX equivalents
+    8. General entities: Use html.unescape() as fallback
+    """
+    if not text or "&" not in text:
+        return text
+
+    # Define comprehensive entity mappings
+    entity_mappings = {
+        # Basic HTML entities -> LaTeX
+        "&amp;": "&",  # Let BibTeX handle ampersand naturally
+        "&lt;": r"<",  # Keep as-is for BibTeX
+        "&gt;": r">",  # Keep as-is for BibTeX
+        # Quotation marks -> LaTeX quotes
+        "&quot;": "''",  # Generic double quote -> LaTeX closing double quote
+        "&apos;": "'",  # Apostrophe -> single quote
+        "&lsquo;": "`",  # Left single quote -> LaTeX opening single quote
+        "&rsquo;": "'",  # Right single quote -> LaTeX closing single quote
+        "&ldquo;": "``",  # Left double quote -> LaTeX opening double quote
+        "&rdquo;": "''",  # Right double quote -> LaTeX closing double quote
+        "&laquo;": r"\guillemotleft",  # Left double angle quote
+        "&raquo;": r"\guillemotright",  # Right double angle quote
+        "&bdquo;": ",,",  # German double low-9 quote
+        "&sbquo;": ",",  # German single low-9 quote
+        # Typography
+        "&ndash;": "--",  # En dash -> LaTeX en dash
+        "&mdash;": "---",  # Em dash -> LaTeX em dash
+        "&hellip;": r"\ldots",  # Horizontal ellipsis -> LaTeX
+        "&nbsp;": " ",  # Non-breaking space -> regular space
+        # Mathematical symbols - use text-mode or UTF-8
+        "&deg;": r"${}^\circ$",  # Keep this one as it's commonly used
+        "&plusmn;": "±",  # UTF-8 plus-minus
+        "&times;": "×",  # UTF-8 multiplication
+        "&divide;": "÷",  # UTF-8 division
+        "&frac12;": "½",  # UTF-8 one half
+        "&frac14;": "¼",  # UTF-8 one quarter
+        "&frac34;": "¾",  # UTF-8 three quarters
+        "&sup1;": "¹",  # UTF-8 superscript 1
+        "&sup2;": "²",  # UTF-8 superscript 2
+        "&sup3;": "³",  # UTF-8 superscript 3
+        "&micro;": "µ",  # UTF-8 micro sign
+        "&infin;": "∞",  # UTF-8 infinity
+        # Arrows - use UTF-8
+        "&larr;": "←",  # Left arrow
+        "&rarr;": "→",  # Right arrow
+        "&uarr;": "↑",  # Up arrow
+        "&darr;": "↓",  # Down arrow
+        "&harr;": "↔",  # Left-right arrow
+        "&lArr;": "⇐",  # Double left arrow
+        "&rArr;": "⇒",  # Double right arrow
+        "&uArr;": "⇑",  # Double up arrow
+        "&dArr;": "⇓",  # Double down arrow
+        "&hArr;": "⇔",  # Double left-right arrow
+        # Symbols - text-mode commands
+        "&copy;": r"\copyright",
+        "&reg;": r"\textregistered",
+        "&trade;": r"\texttrademark",
+        "&sect;": r"\S",
+        "&para;": r"\P",
+        "&dagger;": r"\textdagger",
+        "&Dagger;": r"\textdaggerdbl",
+        "&bull;": r"\textbullet",
+        # Greek letters (lowercase) - use UTF-8
+        "&alpha;": "α",
+        "&beta;": "β",
+        "&gamma;": "γ",
+        "&delta;": "δ",
+        "&epsilon;": "ε",
+        "&zeta;": "ζ",
+        "&eta;": "η",
+        "&theta;": "θ",
+        "&iota;": "ι",
+        "&kappa;": "κ",
+        "&lambda;": "λ",
+        "&mu;": "μ",
+        "&nu;": "ν",
+        "&xi;": "ξ",
+        "&omicron;": "ο",
+        "&pi;": "π",
+        "&rho;": "ρ",
+        "&sigma;": "σ",
+        "&tau;": "τ",
+        "&upsilon;": "υ",
+        "&phi;": "φ",
+        "&chi;": "χ",
+        "&psi;": "ψ",
+        "&omega;": "ω",
+        # Greek letters (uppercase) - use UTF-8
+        "&Alpha;": "Α",
+        "&Beta;": "Β",
+        "&Gamma;": "Γ",
+        "&Delta;": "Δ",
+        "&Epsilon;": "Ε",
+        "&Zeta;": "Ζ",
+        "&Eta;": "Η",
+        "&Theta;": "Θ",
+        "&Iota;": "Ι",
+        "&Kappa;": "Κ",
+        "&Lambda;": "Λ",
+        "&Mu;": "Μ",
+        "&Nu;": "Ν",
+        "&Xi;": "Ξ",
+        "&Omicron;": "Ο",
+        "&Pi;": "Π",
+        "&Rho;": "Ρ",
+        "&Sigma;": "Σ",
+        "&Tau;": "Τ",
+        "&Upsilon;": "Υ",
+        "&Phi;": "Φ",
+        "&Chi;": "Χ",
+        "&Psi;": "Ψ",
+        "&Omega;": "Ω",
+    }
+
+    # Apply manual mappings first
+    for entity, replacement in entity_mappings.items():
+        text = text.replace(entity, replacement)
+
+    # Check for any remaining unconverted HTML entities
+    remaining_entities = re.findall(r"&[a-zA-Z][a-zA-Z0-9]*;", text)
+    if remaining_entities:
+        logger.warning(f"Found unconverted HTML entities: {remaining_entities}")
+
+    # For remaining entities (especially accented characters), use html.unescape
+    # to convert to UTF-8, which is what we want for European characters
+    text = html.unescape(text)
+
+    # Final step: escape any remaining bare ampersands for LaTeX
+    # Only escape & that are not already escaped (i.e., not preceded by backslash)
+    text = re.sub(r"(?<!\\)&", r"\\&", text)
+
+    return text
+
+
+def _check_for_inappropriate_symbols(text: str, field: str, entry_id: str) -> None:
+    """Check for mathematical symbols and arrows that might be inappropriate in titles."""
+    # Mathematical symbols that are often inappropriate in titles
+    math_symbols = [
+        "±",
+        "×",
+        "÷",
+        "µ",
+        "∞",
+        "½",
+        "¼",
+        "¾",
+        "¹",
+        "²",
+        "³",
+        "${}^\\circ$",
+        "°",  # degree symbols
+    ]
+
+    # Arrow symbols that are often inappropriate in titles
+    arrow_symbols = ["←", "→", "↑", "↓", "↔", "⇐", "⇒", "⇑", "⇓", "⇔"]
+
+    # Greek letters that might be inappropriate in titles (except common ones)
+    greek_symbols = [
+        "α",
+        "β",
+        "γ",
+        "δ",
+        "ε",
+        "ζ",
+        "η",
+        "θ",
+        "ι",
+        "κ",
+        "λ",
+        "μ",
+        "ν",
+        "ξ",
+        "ο",
+        "π",
+        "ρ",
+        "σ",
+        "τ",
+        "υ",
+        "φ",
+        "χ",
+        "ψ",
+        "ω",
+        "Α",
+        "Β",
+        "Γ",
+        "Δ",
+        "Ε",
+        "Ζ",
+        "Η",
+        "Θ",
+        "Ι",
+        "Κ",
+        "Λ",
+        "Μ",
+        "Ν",
+        "Ξ",
+        "Ο",
+        "Π",
+        "Ρ",
+        "Σ",
+        "Τ",
+        "Υ",
+        "Φ",
+        "Χ",
+        "Ψ",
+        "Ω",
+    ]
+
+    found_symbols = []
+
+    # Check for mathematical symbols
+    for symbol in math_symbols:
+        if symbol in text:
+            found_symbols.append(f"math symbol '{symbol}'")
+
+    # Check for arrows
+    for symbol in arrow_symbols:
+        if symbol in text:
+            found_symbols.append(f"arrow '{symbol}'")
+
+    # Check for Greek letters (but be less strict - only warn if many are found)
+    greek_found = [symbol for symbol in greek_symbols if symbol in text]
+    if len(greek_found) >= 2:  # Only warn if multiple Greek letters found
+        found_symbols.append(f"Greek letters {greek_found}")
+
+    if found_symbols:
+        logger.warning(
+            f"Entry '{entry_id}' field '{field}' contains potentially inappropriate symbols: "
+            f"{', '.join(found_symbols)}. Consider if these belong in a {field}."
+        )
 
 
 def fix_isbn(entry: dict) -> dict:
@@ -78,7 +361,21 @@ def fix_utf8_field(
         value = LatexNodes2Text().latex_to_text(value)
     elif field in latex_fields:
         # Only apply LaTeX encoding if the text doesn't already contain LaTeX commands
-        if not ("{\\" in value or "\\'" in value or "\\\\" in value):
+        # Check for various LaTeX command patterns
+        has_latex_commands = (
+            "{\\" in value  # Braced commands like {\LaTeX}
+            or "\\'" in value  # Accented characters like \'e
+            or "\\\\" in value  # Double backslashes
+            or "\\&" in value  # Escaped ampersands
+            or "\\$" in value  # Escaped dollars
+            or "\\%" in value  # Escaped percent
+            or "\\#" in value  # Escaped hash
+            or "\\_" in value  # Escaped underscores
+            or "\\{" in value  # Escaped braces
+            or "\\}" in value  # Escaped braces
+            or "\\textbackslash" in value  # Already encoded backslashes
+        )
+        if not has_latex_commands:
             value = unicode_to_latex(value)
     entry[field] = value
 
@@ -132,12 +429,20 @@ def fix_doi(entry: dict) -> dict:
     """Fix DOI field by extracting from URL if needed.
 
     - If URL points to DOI (http[s]://[dx.]doi.org/{DOI}), extract {DOI}
+    - If URL points to arXiv (https://arxiv.org/abs/{ID} or https://arxiv.org/pdf/{ID}), create DOI 10.48550/arXiv.{ID}
     - If DOI and URL have same value (ignoring whitespace and case), remove URL
     - If DOI exists but doesn't have proper value: log error and don't change anything
     - If no DOI exists: create it with extracted {DOI} value
     - Remove URL item after successful DOI extraction or matching
+    - Fix arXiv DOI formatting to use proper capitalization (10.48550/arXiv.)
     """
     if "url" not in entry:
+        # Check if we have an existing DOI that needs case fixing for arXiv
+        if "doi" in entry:
+            existing_doi = entry["doi"].strip()
+            if existing_doi and "arxiv" in existing_doi.lower():
+                # Fix arXiv DOI capitalization
+                entry["doi"] = _fix_arxiv_doi_case(existing_doi)
         return entry
 
     url = entry["url"].strip()
@@ -150,12 +455,42 @@ def fix_doi(entry: dict) -> dict:
             entry.pop("url")
             return entry
 
+    # Pattern to match arXiv URLs: https://arxiv.org/abs/{ID} or https://arxiv.org/pdf/{ID}
+    arxiv_url_pattern = r"^https?://arxiv\.org/(?:abs|pdf)/(.+?)(?:\.pdf)?$"
+    arxiv_match = re.match(arxiv_url_pattern, url, re.IGNORECASE)
+
+    if arxiv_match:
+        arxiv_id = arxiv_match.group(1)
+        arxiv_doi = f"10.48550/arXiv.{arxiv_id}"
+
+        # Check if DOI field already exists
+        if "doi" in entry:
+            existing_doi = entry["doi"].strip()
+            if existing_doi:
+                # Fix case of existing arXiv DOI
+                existing_doi_fixed = _fix_arxiv_doi_case(existing_doi)
+                if existing_doi_fixed.lower() != arxiv_doi.lower():
+                    logger.error(
+                        f"DOI mismatch in entry {entry.get('ID', 'unknown')}: existing='{existing_doi}' vs arXiv URL='{arxiv_doi}'"
+                    )
+                    return entry  # Don't change anything on mismatch
+                else:
+                    # DOI exists and matches (case insensitive), just remove URL and fix DOI case
+                    entry["doi"] = existing_doi_fixed
+                    entry.pop("url")
+                    return entry
+
+        # Set the arXiv DOI and remove URL
+        entry["doi"] = arxiv_doi
+        entry.pop("url")
+        return entry
+
     # Pattern to match DOI URLs: http[s]://[dx.]doi.org/{DOI}
     doi_url_pattern = r"^https?://(?:dx\.)?doi\.org/(.+)$"
     match = re.match(doi_url_pattern, url, re.IGNORECASE)
 
     if not match:
-        return entry  # URL doesn't point to DOI
+        return entry  # URL doesn't point to DOI or arXiv
 
     extracted_doi = match.group(1)
 
@@ -177,6 +512,20 @@ def fix_doi(entry: dict) -> dict:
     entry.pop("url")
 
     return entry
+
+
+def _fix_arxiv_doi_case(doi: str) -> str:
+    """Fix arXiv DOI capitalization to use proper format 10.48550/arXiv.{ID}"""
+    # Pattern to match arXiv DOIs with case variations
+    arxiv_doi_pattern = r"^(10\.48550/)(arxiv\.?)(.+)$"
+    match = re.match(arxiv_doi_pattern, doi, re.IGNORECASE)
+
+    if match:
+        prefix = match.group(1)  # "10.48550/"
+        arxiv_id = match.group(3)  # ID part
+        return f"{prefix}arXiv.{arxiv_id}"
+
+    return doi  # Return unchanged if not an arXiv DOI
 
 
 def fix_month(entry: dict) -> dict:

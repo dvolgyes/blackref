@@ -21,6 +21,8 @@ from blackref.field_validators import (
     fix_publisher_capitalization,
     fix_journal_capitalization,
     _protect_mixed_case_words,
+    fix_html_entities,
+    _convert_html_entities,
 )
 
 
@@ -1367,12 +1369,75 @@ class TestCapitalizationRules:
         assert "doi" not in result
         assert result["url"] == "https://example.com/paper.pdf"
 
-    def test_fix_doi_arxiv_url_ignored(self):
-        """Test that arXiv URLs are ignored."""
+    def test_fix_doi_arxiv_url_abs_creates_doi(self):
+        """Test that arXiv abs URLs create DOI and remove URL."""
         entry = {"ID": "test", "url": "https://arxiv.org/abs/1234.5678"}
         result = fix_doi(entry)
-        assert "doi" not in result
-        assert result["url"] == "https://arxiv.org/abs/1234.5678"
+        assert result["doi"] == "10.48550/arXiv.1234.5678"
+        assert "url" not in result
+
+    def test_fix_doi_arxiv_url_pdf_creates_doi(self):
+        """Test that arXiv pdf URLs create DOI and remove URL."""
+        entry = {"ID": "test", "url": "https://arxiv.org/pdf/2410.09704.pdf"}
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.2410.09704"
+        assert "url" not in result
+
+    def test_fix_doi_arxiv_url_pdf_without_extension_creates_doi(self):
+        """Test that arXiv pdf URLs without .pdf extension create DOI."""
+        entry = {"ID": "test", "url": "https://arxiv.org/pdf/2410.09704"}
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.2410.09704"
+        assert "url" not in result
+
+    def test_fix_doi_arxiv_url_http_creates_doi(self):
+        """Test that arXiv URLs with http (not https) create DOI."""
+        entry = {"ID": "test", "url": "http://arxiv.org/abs/1234.5678"}
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.1234.5678"
+        assert "url" not in result
+
+    def test_fix_doi_arxiv_url_with_existing_matching_doi(self):
+        """Test that arXiv URLs with matching DOI remove URL and fix DOI case."""
+        entry = {
+            "ID": "test",
+            "url": "https://arxiv.org/abs/1234.5678",
+            "doi": "10.48550/arxiv.1234.5678",
+        }
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.1234.5678"  # Fixed case
+        assert "url" not in result
+
+    def test_fix_doi_arxiv_url_with_existing_mismatched_doi(self):
+        """Test that arXiv URLs with mismatched DOI log error and don't change anything."""
+        entry = {
+            "ID": "test",
+            "url": "https://arxiv.org/abs/1234.5678",
+            "doi": "10.48550/arXiv.9999.1111",
+        }
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.9999.1111"  # Unchanged
+        assert result["url"] == "https://arxiv.org/abs/1234.5678"  # URL preserved
+
+    def test_fix_doi_arxiv_doi_case_fix_without_url(self):
+        """Test that existing arXiv DOI case is fixed even without URL."""
+        entry = {"ID": "test", "doi": "10.48550/arxiv.1234.5678"}
+        result = fix_doi(entry)
+        assert result["doi"] == "10.48550/arXiv.1234.5678"
+
+    def test_fix_doi_arxiv_doi_case_fix_variations(self):
+        """Test that various arXiv DOI case variations are fixed."""
+        test_cases = [
+            ("10.48550/arxiv.1234.5678", "10.48550/arXiv.1234.5678"),
+            ("10.48550/ARXIV.1234.5678", "10.48550/arXiv.1234.5678"),
+            ("10.48550/ArXiv.1234.5678", "10.48550/arXiv.1234.5678"),
+            ("10.48550/arXiv.1234.5678", "10.48550/arXiv.1234.5678"),  # Already correct
+        ]
+
+        for input_doi, expected_doi in test_cases:
+            entry = {"ID": "test", "doi": input_doi}
+            result = fix_doi(entry)
+            assert result["doi"] == expected_doi
 
     def test_fix_doi_partial_doi_url_ignored(self):
         """Test that partial DOI URLs are ignored."""
@@ -1475,3 +1540,326 @@ class TestDOIIntegration:
         for case in test_cases:
             result = fix_doi(case["input"].copy())
             assert result == case["expected"], f"Failed for case {case['input']}"
+
+
+class TestFixHTMLEntities:
+    """Test HTML entity conversion to LaTeX and UTF-8."""
+
+    def test_convert_html_entities_basic(self):
+        """Test basic HTML entity conversion."""
+        test_cases = [
+            ("&amp;", r"\&"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("No entities here", "No entities here"),
+            ("", ""),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_quotes(self):
+        """Test quotation mark entity conversion."""
+        test_cases = [
+            ("&quot;Hello&quot;", "''Hello''"),
+            ("&ldquo;Hello&rdquo;", "``Hello''"),
+            ("&lsquo;Hello&rsquo;", "`Hello'"),
+            ("&laquo;Hello&raquo;", r"\guillemotleftHello\guillemotright"),
+            ("&bdquo;Hello&rdquo;", ",,Hello''"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_typography(self):
+        """Test typography entity conversion."""
+        test_cases = [
+            ("&ndash;", "--"),
+            ("&mdash;", "---"),
+            ("&hellip;", r"\ldots"),
+            ("&nbsp;", " "),
+            ("Page&nbsp;1&ndash;10", "Page 1--10"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_mathematical(self):
+        """Test mathematical symbol entity conversion."""
+        test_cases = [
+            ("&deg;", r"${}^\circ$"),
+            ("&plusmn;", "±"),
+            ("&times;", "×"),
+            ("&divide;", "÷"),
+            ("&frac12;", "½"),
+            ("&sup2;", "²"),
+            ("&micro;", "µ"),
+            ("&infin;", "∞"),
+            ("&rarr;", "→"),
+            ("&larr;", "←"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_symbols(self):
+        """Test symbol entity conversion."""
+        test_cases = [
+            ("&copy;", r"\copyright"),
+            ("&reg;", r"\textregistered"),
+            ("&trade;", r"\texttrademark"),
+            ("&sect;", r"\S"),
+            ("&para;", r"\P"),
+            ("&dagger;", r"\textdagger"),
+            ("&bull;", r"\textbullet"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_greek_letters(self):
+        """Test Greek letter entity conversion."""
+        test_cases = [
+            ("&alpha;", "α"),
+            ("&beta;", "β"),
+            ("&gamma;", "γ"),
+            ("&delta;", "δ"),
+            ("&omega;", "ω"),
+            ("&Alpha;", "Α"),
+            ("&Beta;", "Β"),
+            ("&Gamma;", "Γ"),
+            ("&Delta;", "Δ"),
+            ("&Omega;", "Ω"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_accented_characters(self):
+        """Test accented character entity conversion to UTF-8."""
+        test_cases = [
+            ("&aacute;", "á"),
+            ("&eacute;", "é"),
+            ("&iacute;", "í"),
+            ("&oacute;", "ó"),
+            ("&uacute;", "ú"),
+            ("&Aacute;", "Á"),
+            ("&Eacute;", "É"),
+            ("&agrave;", "à"),
+            ("&egrave;", "è"),
+            ("&aring;", "å"),
+            ("&Aring;", "Å"),
+            ("&auml;", "ä"),
+            ("&ouml;", "ö"),
+            ("&uuml;", "ü"),
+            ("&Auml;", "Ä"),
+            ("&Ouml;", "Ö"),
+            ("&Uuml;", "Ü"),
+            ("&oslash;", "ø"),
+            ("&Oslash;", "Ø"),
+            ("&aelig;", "æ"),
+            ("&AElig;", "Æ"),
+            ("&ccedil;", "ç"),
+            ("&Ccedil;", "Ç"),
+            ("&ntilde;", "ñ"),
+            ("&Ntilde;", "Ñ"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_convert_html_entities_complex_text(self):
+        """Test complex text with multiple entity types."""
+        input_text = "Computers &amp; Graphics: &ldquo;3D Rendering&rdquo; by M&uuml;ller &mdash; &copy; 2023"
+        expected = (
+            r"Computers \& Graphics: ``3D Rendering'' by Müller --- \copyright 2023"
+        )
+
+        result = _convert_html_entities(input_text)
+        assert result == expected, (
+            f"Failed for complex text: got '{result}', expected '{expected}'"
+        )
+
+    def test_fix_html_entities_entry_processing(self):
+        """Test HTML entity conversion on BibTeX entry fields."""
+        entry = {
+            "ID": "test2023",
+            "title": "Advanced Topics in AI &amp; Machine Learning",
+            "journal": "Computers &amp; Graphics",
+            "author": "M&uuml;ller, Hans &amp; Smith, Jane",
+            "abstract": "This paper discusses AI&hellip; &ldquo;deep learning&rdquo; methods.",
+            "note": "Copyright &copy; 2023. Temperature: 25&deg;C &plusmn; 1&deg;C",
+            "year": "2023",  # Should not be processed
+            "pages": "1--10",  # Should not be processed
+        }
+
+        expected = {
+            "ID": "test2023",
+            "title": r"Advanced Topics in AI \& Machine Learning",
+            "journal": r"Computers \& Graphics",
+            "author": r"Müller, Hans \& Smith, Jane",
+            "abstract": r"This paper discusses AI\ldots ``deep learning'' methods.",
+            "note": r"Copyright \copyright 2023. Temperature: 25${}^\circ$C ± 1${}^\circ$C",
+            "year": "2023",
+            "pages": "1--10",
+        }
+
+        result = fix_html_entities(entry.copy())
+        assert result == expected, "Entry processing failed"
+
+    def test_fix_html_entities_no_entities(self):
+        """Test that entries without HTML entities are unchanged."""
+        entry = {
+            "ID": "test2023",
+            "title": "Normal Title without Entities",
+            "author": "Smith, John",
+            "year": "2023",
+        }
+
+        result = fix_html_entities(entry.copy())
+        assert result == entry, "Entry without entities should be unchanged"
+
+    def test_fix_html_entities_empty_fields(self):
+        """Test that empty fields are handled correctly."""
+        entry = {
+            "ID": "test2023",
+            "title": "",
+            "author": "Smith, John",
+            "abstract": None,  # This will be handled by remove_empty_keys
+        }
+
+        result = fix_html_entities(entry.copy())
+        expected = {
+            "ID": "test2023",
+            "title": "",
+            "author": "Smith, John",
+            "abstract": None,
+        }
+        assert result == expected, "Empty fields should be handled correctly"
+
+    def test_fix_html_entities_journal_field_real_example(self):
+        """Test the real-world case from example.bib."""
+        entry = {"ID": "test2023", "journal": "Echo Research &amp; Practice"}
+
+        expected = {"ID": "test2023", "journal": r"Echo Research \& Practice"}
+
+        result = fix_html_entities(entry.copy())
+        assert result == expected, "Real journal example should work correctly"
+
+    def test_fix_html_entities_unconverted_warning(self):
+        """Test that unconverted HTML entities trigger warnings."""
+        from unittest.mock import patch
+
+        # Test unconverted entity
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            _convert_html_entities("Test &unknownentity; text")
+            mock_warning.assert_called_once_with(
+                "Found unconverted HTML entities: ['&unknownentity;']"
+            )
+
+    def test_fix_html_entities_inappropriate_symbols_warning(self):
+        """Test that inappropriate symbols in titles trigger warnings."""
+        from unittest.mock import patch
+
+        # Test mathematical symbols in title
+        entry = {
+            "ID": "test2023",
+            "title": "Algorithm with O(n²) complexity and ±5% error",
+        }
+
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            fix_html_entities(entry.copy())
+            mock_warning.assert_called_once()
+            args = mock_warning.call_args[0][0]
+            assert "test2023" in args
+            assert "title" in args
+            assert "math symbol" in args
+
+    def test_fix_html_entities_arrows_warning(self):
+        """Test that arrows in titles trigger warnings."""
+        from unittest.mock import patch
+
+        # Test arrows in title
+        entry = {"ID": "test2023", "title": "Process A → Process B: Analysis"}
+
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            fix_html_entities(entry.copy())
+            mock_warning.assert_called_once()
+            args = mock_warning.call_args[0][0]
+            assert "test2023" in args
+            assert "arrow" in args
+
+    def test_fix_html_entities_greek_letters_warning(self):
+        """Test that multiple Greek letters in titles trigger warnings."""
+        from unittest.mock import patch
+
+        # Test multiple Greek letters in title
+        entry = {"ID": "test2023", "title": "Study of α-particles and β-decay"}
+
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            fix_html_entities(entry.copy())
+            mock_warning.assert_called_once()
+            args = mock_warning.call_args[0][0]
+            assert "test2023" in args
+            assert "Greek letters" in args
+
+    def test_fix_html_entities_no_warning_in_abstract(self):
+        """Test that mathematical symbols in abstract don't trigger warnings."""
+        from unittest.mock import patch
+
+        # Mathematical symbols should be fine in abstract
+        entry = {
+            "ID": "test2023",
+            "abstract": "We measured ±5% accuracy with O(n²) complexity",
+        }
+
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            fix_html_entities(entry.copy())
+            mock_warning.assert_not_called()
+
+    def test_fix_html_entities_single_greek_no_warning(self):
+        """Test that single Greek letters don't trigger warnings."""
+        from unittest.mock import patch
+
+        # Single Greek letter should not warn
+        entry = {"ID": "test2023", "title": "Algorithm α Analysis"}
+
+        with patch("blackref.field_validators.logger.warning") as mock_warning:
+            fix_html_entities(entry.copy())
+            mock_warning.assert_not_called()
+
+    def test_fix_html_entities_no_double_escaping(self):
+        """Test that already escaped ampersands are not double-escaped."""
+        # Test that \& doesn't become \\&
+        test_cases = [
+            ("Already escaped \\& symbol", "Already escaped \\& symbol"),
+            ("Mixed: \\& and &amp;", "Mixed: \\& and \\&"),
+            ("Plain & and &amp;", "Plain \\& and \\&"),
+        ]
+
+        for input_text, expected in test_cases:
+            result = _convert_html_entities(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
