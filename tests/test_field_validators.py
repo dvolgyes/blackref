@@ -940,6 +940,14 @@ class TestCapitalizationRules:
         result = fix_journal_capitalization(entry)
         assert "journal" not in result
 
+    def test_title_double_braced_with_mixed_braces(self):
+        """Test title from {{...}} source with mixed inner braces - should preserve structure."""
+        # This simulates what bibtexparser gives us from: {{DeepGCNs:} Can {GCNs} Go As Deep As {CNNs?}}
+        entry = {"ID": "test", "title": "{DeepGCNs:} Can {GCNs} Go As Deep As {CNNs?}"}
+        result = fix_title_capitalization(entry)
+        # Should preserve the mixed brace structure, not create double braces
+        assert result["title"] == "{DeepGCNs:} Can {GCNs} Go As Deep As {CNNs?}"
+
     def test_protect_mixed_case_words_edge_cases(self):
         """Test edge cases for mixed-case word protection."""
         # Single character words

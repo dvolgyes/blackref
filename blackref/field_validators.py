@@ -330,15 +330,28 @@ def fix_field_capitalization(entry: dict, field: str) -> dict:
         return entry
 
     # Special handling for title and booktitle: if already wrapped in braces,
-    # remove them and apply protection, then let writer add them back
+    # check if it came from double braces and handle appropriately
     if (
         field in ["title", "booktitle"]
         and value.startswith("{")
         and value.endswith("}")
     ):
         # This could be from {{...}} in source (parsed to {...}) or {...} in source
-        # Remove outer braces and apply normal mixed-case protection
-        inner_content = value[1:-1]  # Remove { and }
+        inner_content = value[1:-1]  # Remove outer { and }
+
+        # Check if this looks like it came from {{...}} source with mixed brace structure
+        # Indicators: starts/ends with unmatched braces, or has complex brace patterns
+        if (
+            inner_content.startswith("}")
+            or inner_content.endswith("{")
+            or ":}" in inner_content
+            or "{:" in inner_content
+        ):
+            # This likely came from {{...}} source with intentional mixed brace structure
+            # Preserve as-is since this was intentionally double-braced
+            return entry
+
+        # If no internal braces, apply normal mixed-case protection
         protected_content = _protect_mixed_case_words(inner_content)
         # Don't wrap in extra braces - let the BibTeX writer handle the outer braces
         entry[field] = protected_content
