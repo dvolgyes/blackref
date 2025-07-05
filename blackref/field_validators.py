@@ -383,7 +383,18 @@ def fix_utf8_field(
 
 
 def fix_authors(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
-    """Fix author field encoding."""
+    """Fix author field encoding and replace & variants with 'and'."""
+    if "author" in entry:
+        # Replace & variants with proper BibTeX 'and' separator
+        entry["author"] = (
+            entry["author"]
+            .replace("&amp;", " and ")
+            .replace("\\&", " and ")
+            .replace("&", " and ")
+        )
+        # Clean up multiple spaces
+        entry["author"] = " ".join(entry["author"].split())
+
     return fix_utf8_field(entry, "author", utf8_fields, latex_fields)
 
 

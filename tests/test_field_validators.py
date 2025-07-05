@@ -310,6 +310,51 @@ class TestFixAuthors:
         result = fix_authors(entry, utf8_fields, latex_fields)
         assert result["author"] == "Test Author"
 
+    def test_fix_authors_ampersand_replacement(self):
+        """Test ampersand replacement in author field."""
+        entry = {"ID": "test", "author": "Smith, John & Doe, Jane"}
+        utf8_fields = set()
+        latex_fields = set()
+        result = fix_authors(entry, utf8_fields, latex_fields)
+        assert result["author"] == "Smith, John and Doe, Jane"
+
+    def test_fix_authors_html_ampersand_replacement(self):
+        """Test HTML ampersand replacement in author field."""
+        entry = {"ID": "test", "author": "Smith, John &amp; Doe, Jane"}
+        utf8_fields = set()
+        latex_fields = set()
+        result = fix_authors(entry, utf8_fields, latex_fields)
+        assert result["author"] == "Smith, John and Doe, Jane"
+
+    def test_fix_authors_escaped_ampersand_replacement(self):
+        """Test escaped ampersand replacement in author field."""
+        entry = {"ID": "test", "author": "Smith, John \\& Doe, Jane"}
+        utf8_fields = set()
+        latex_fields = set()
+        result = fix_authors(entry, utf8_fields, latex_fields)
+        assert result["author"] == "Smith, John and Doe, Jane"
+
+    def test_fix_authors_multiple_ampersands(self):
+        """Test multiple ampersand variants in author field."""
+        entry = {
+            "ID": "test",
+            "author": "Smith, A. & Jones, B. &amp; Brown, C. \\& Wilson, D.",
+        }
+        utf8_fields = set()
+        latex_fields = set()
+        result = fix_authors(entry, utf8_fields, latex_fields)
+        assert (
+            result["author"] == "Smith, A. and Jones, B. and Brown, C. and Wilson, D."
+        )
+
+    def test_fix_authors_whitespace_cleanup(self):
+        """Test whitespace cleanup after ampersand replacement."""
+        entry = {"ID": "test", "author": "Smith,   John  &   Doe,    Jane"}
+        utf8_fields = set()
+        latex_fields = set()
+        result = fix_authors(entry, utf8_fields, latex_fields)
+        assert result["author"] == "Smith, John and Doe, Jane"
+
 
 class TestFixAbstract:
     """Test abstract field fixing."""
