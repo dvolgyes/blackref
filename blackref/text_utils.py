@@ -15,7 +15,7 @@ def fix_paragraphs(text: str) -> str:
 
 
 def fix_wrap(
-    text: str, key: str, indent: int = 10, line_length: int = 80, relax: int = 10
+    text: str, key: str, indent: int = 10, line_length: int = 100, relax: int = 10
 ) -> str:
     """Format and wrap text based on BibTeX field type."""
     text = " ".join(text.split())  # removing all extra whitespaces
@@ -69,10 +69,14 @@ def fix_wrap(
         keywords = text.strip().replace(";", ",").replace(", ", ",")
         keywords = keywords.split(",")
         keywords = ", ".join(map(str.strip, keywords))
-        parts = wrapper.wrap(keywords)
-        # Align continuation lines with opening brace position
-        continuation_indent = " " * (indent + 5)
-        result = f"\n{continuation_indent}".join(map(str.strip, parts))
-        return result.replace("_", " ")
+
+        if len(keywords) > wrapper.width + relax:
+            parts = wrapper.wrap(keywords)
+            # Align continuation lines with opening brace position
+            continuation_indent = " " * (indent + 5)
+            result = f"\n{continuation_indent}".join(map(str.strip, parts))
+            return result.replace("_", " ")
+
+        return keywords.replace("_", " ")
 
     return text.strip()
