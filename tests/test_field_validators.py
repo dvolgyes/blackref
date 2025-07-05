@@ -19,6 +19,7 @@ from blackref.field_validators import (
     fix_title_capitalization,
     fix_booktitle_capitalization,
     fix_publisher_capitalization,
+    fix_journal_capitalization,
     _protect_mixed_case_words,
 )
 
@@ -882,6 +883,56 @@ class TestCapitalizationRules:
         entry = {"ID": "test", "title": "Test"}
         result = fix_publisher_capitalization(entry)
         assert "publisher" not in result
+
+    def test_fix_journal_capitalization(self):
+        """Test journal capitalization."""
+        entry = {"ID": "test", "journal": "IEEE Transactions on Pattern Analysis"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "{IEEE} Transactions on Pattern Analysis"
+
+    def test_fix_journal_all_caps_protected(self):
+        """Test all-caps journal gets protected."""
+        entry = {"ID": "test", "journal": "IEEE TRANSACTIONS ON PATTERN ANALYSIS"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "{IEEE TRANSACTIONS ON PATTERN ANALYSIS}"
+
+    def test_fix_journal_mixed_case_words_protected(self):
+        """Test mixed-case words in journal get protected."""
+        entry = {"ID": "test", "journal": "Nature Machine Intelligence"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "Nature Machine Intelligence"  # No mixed-case words
+
+    def test_fix_journal_mixed_case_with_acronyms(self):
+        """Test journal with mixed-case acronyms."""
+        entry = {"ID": "test", "journal": "ACM Computing Surveys"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "{ACM} Computing Surveys"
+
+    def test_fix_journal_already_protected_single_braces(self):
+        """Test already protected journal doesn't get double-protected."""
+        entry = {"ID": "test", "journal": "{IEEE Transactions on Pattern Analysis}"}
+        result = fix_journal_capitalization(entry)
+        assert (
+            result["journal"] == "{IEEE Transactions on Pattern Analysis}"
+        )  # No double protection
+
+    def test_fix_journal_already_protected_double_braces(self):
+        """Test double-braced journal triggers warning and stays unchanged."""
+        entry = {"ID": "test", "journal": "{{IEEE TRANSACTIONS}}"}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == "{{IEEE TRANSACTIONS}}"  # Unchanged
+
+    def test_fix_journal_empty_field(self):
+        """Test empty journal field."""
+        entry = {"ID": "test", "journal": ""}
+        result = fix_journal_capitalization(entry)
+        assert result["journal"] == ""
+
+    def test_fix_journal_no_field(self):
+        """Test entry without journal field."""
+        entry = {"ID": "test", "title": "Test"}
+        result = fix_journal_capitalization(entry)
+        assert "journal" not in result
 
     def test_protect_mixed_case_words_edge_cases(self):
         """Test edge cases for mixed-case word protection."""

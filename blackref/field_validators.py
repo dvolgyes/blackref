@@ -273,6 +273,38 @@ def fix_publisher_capitalization(entry: dict) -> dict:
     return entry
 
 
+def fix_journal_capitalization(entry: dict) -> dict:
+    """Fix journal field capitalization with special rules similar to publisher."""
+    if "journal" not in entry:
+        return entry
+
+    value = entry["journal"].strip()
+    if not value:
+        return entry
+
+    # Check if entire field is protected with double braces
+    if value.startswith("{{") and value.endswith("}}"):
+        logger.warning(
+            f"Field 'journal' in entry {entry.get('ID', 'unknown')} is entirely protected with braces: '{value}'"
+        )
+        return entry
+
+    # Check if it's already protected with single braces
+    if value.startswith("{") and value.endswith("}"):
+        return entry  # Already protected, don't double-protect
+
+    # Check if everything is capitalized (excluding spaces and punctuation)
+    letter_chars = re.findall(r"[a-zA-Z]", value)
+    if letter_chars and all(c.isupper() for c in letter_chars):
+        # All caps journal - protect the entire field
+        entry["journal"] = f"{{{value}}}"
+        return entry
+
+    # Apply normal mixed-case word protection
+    entry["journal"] = _protect_mixed_case_words(value)
+    return entry
+
+
 def fix_field_capitalization(entry: dict, field: str) -> dict:
     """Fix field capitalization with warnings and mixed-case word protection.
 

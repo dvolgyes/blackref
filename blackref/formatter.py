@@ -17,6 +17,7 @@ from .field_validators import (
     fix_title_capitalization,
     fix_booktitle_capitalization,
     fix_publisher_capitalization,
+    fix_journal_capitalization,
 )
 from .text_utils import fix_wrap
 
@@ -78,6 +79,7 @@ def formatter(
             entry = fix_title_capitalization(entry)
             entry = fix_booktitle_capitalization(entry)
             entry = fix_publisher_capitalization(entry)
+            entry = fix_journal_capitalization(entry)
         for key in entry.keys():
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
 
