@@ -16,6 +16,10 @@ from blackref.field_validators import (
     fix_booktitle_dashes,
     fix_abstract_dashes,
     fix_doi,
+    fix_title_capitalization,
+    fix_booktitle_capitalization,
+    fix_publisher_capitalization,
+    _protect_mixed_case_words,
 )
 
 
@@ -745,6 +749,321 @@ class TestFixDOI:
         assert result["doi"] == "10.1000/182"
         assert "url" not in result
         assert result["title"] == "Test"
+
+
+class TestCapitalizationRules:
+    """Test capitalization rules for title/booktitle/publisher fields."""
+
+    def test_protect_mixed_case_words_simple(self):
+        """Test basic mixed-case word protection."""
+        assert _protect_mixed_case_words("4D") == "{4D}"
+        assert _protect_mixed_case_words("IEEE") == "{IEEE}"
+        assert _protect_mixed_case_words("GPUs") == "{GPUs}"
+        assert _protect_mixed_case_words("AutoMVQ") == "{AutoMVQ}"
+        assert (
+            _protect_mixed_case_words("GOOD") == "{GOOD}"
+        )  # Has uppercase after first char
+
+    def test_protect_mixed_case_words_with_punctuation(self):
+        """Test mixed-case word protection with punctuation."""
+        assert _protect_mixed_case_words("(IEEE)") == "{(IEEE)}"
+        assert _protect_mixed_case_words("IEEE:") == "{IEEE:}"
+        assert _protect_mixed_case_words("@GPUs") == "{@GPUs}"
+
+    def test_protect_mixed_case_words_no_protection_needed(self):
+        """Test words that don't need protection."""
+        assert _protect_mixed_case_words("Ok") == "Ok"
+        assert _protect_mixed_case_words("The") == "The"
+        assert _protect_mixed_case_words("good") == "good"
+        assert _protect_mixed_case_words("123") == "123"
+        assert _protect_mixed_case_words("A") == "A"
+
+    def test_protect_mixed_case_words_multiple_words(self):
+        """Test protection of multiple words in text."""
+        text = "A study of IEEE versus XML in GPUs"
+        expected = "A study of {IEEE} versus {XML} in {GPUs}"
+        assert _protect_mixed_case_words(text) == expected
+
+    def test_protect_mixed_case_words_mixed_scenario(self):
+        """Test mixed scenario with some words needing protection."""
+        text = "The IEEE 4D rendering with GPUs and Ok results"
+        expected = "The {IEEE} {4D} rendering with {GPUs} and Ok results"
+        assert _protect_mixed_case_words(text) == expected
+
+    def test_fix_title_capitalization_normal_case(self):
+        """Test normal title capitalization with mixed-case words."""
+        entry = {"ID": "test", "title": "A study of IEEE versus XML"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "A study of {IEEE} versus {XML}"
+
+    def test_fix_title_capitalization_all_caps_warning(self):
+        """Test warning for all-caps title."""
+        entry = {"ID": "test", "title": "A STUDY OF IEEE VERSUS XML"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "A STUDY OF IEEE VERSUS XML"  # Unchanged
+
+    def test_fix_title_capitalization_double_braces_conversion_old(self):
+        """Test conversion of double-braced title (old test case)."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {"ID": "test", "title": "{A study of IEEE versus XML}"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "A study of {IEEE} versus {XML}"  # Converted
+
+    def test_fix_title_capitalization_empty_field(self):
+        """Test title capitalization with empty field."""
+        entry = {"ID": "test", "title": ""}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == ""
+
+    def test_fix_title_capitalization_no_field(self):
+        """Test title capitalization with no title field."""
+        entry = {"ID": "test", "author": "John Doe"}
+        result = fix_title_capitalization(entry)
+        assert "title" not in result
+
+    def test_fix_booktitle_capitalization(self):
+        """Test booktitle capitalization."""
+        entry = {"ID": "test", "booktitle": "Proceedings of IEEE Conference"}
+        result = fix_booktitle_capitalization(entry)
+        assert result["booktitle"] == "Proceedings of {IEEE} Conference"
+
+    def test_fix_publisher_capitalization(self):
+        """Test publisher capitalization."""
+        entry = {"ID": "test", "publisher": "IEEE Computer Society"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{IEEE} Computer Society"
+
+    def test_fix_publisher_single_word_all_caps(self):
+        """Test single word all-caps publisher gets protected."""
+        entry = {"ID": "test", "publisher": "IEEE"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{IEEE}"
+
+    def test_fix_publisher_single_word_all_caps_with_numbers(self):
+        """Test single word all-caps publisher with numbers gets protected."""
+        entry = {"ID": "test", "publisher": "ACM"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{ACM}"
+
+    def test_fix_publisher_single_word_mixed_case(self):
+        """Test single word mixed-case publisher gets normal protection."""
+        entry = {"ID": "test", "publisher": "Springer"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "Springer"  # No protection needed
+
+    def test_fix_publisher_already_protected_single_braces(self):
+        """Test already protected publisher doesn't get double-protected."""
+        entry = {"ID": "test", "publisher": "{IEEE}"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{IEEE}"  # No double protection
+
+    def test_fix_publisher_already_protected_double_braces(self):
+        """Test double-braced publisher triggers warning and stays unchanged."""
+        entry = {"ID": "test", "publisher": "{{IEEE}}"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{{IEEE}}"  # Unchanged
+
+    def test_fix_publisher_multi_word_all_caps_warning(self):
+        """Test multi-word all-caps publisher triggers warning."""
+        entry = {"ID": "test", "publisher": "IEEE COMPUTER SOCIETY"}
+        result = fix_publisher_capitalization(entry)
+        assert (
+            result["publisher"] == "IEEE COMPUTER SOCIETY"
+        )  # Unchanged due to all caps
+
+    def test_fix_publisher_empty_field(self):
+        """Test empty publisher field."""
+        entry = {"ID": "test", "publisher": ""}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == ""
+
+    def test_fix_publisher_no_field(self):
+        """Test entry without publisher field."""
+        entry = {"ID": "test", "title": "Test"}
+        result = fix_publisher_capitalization(entry)
+        assert "publisher" not in result
+
+    def test_protect_mixed_case_words_edge_cases(self):
+        """Test edge cases for mixed-case word protection."""
+        # Single character words
+        assert _protect_mixed_case_words("a") == "a"
+        assert _protect_mixed_case_words("A") == "A"
+
+        # Numbers only
+        assert _protect_mixed_case_words("123") == "123"
+
+        # Mixed numbers and letters
+        assert _protect_mixed_case_words("3D") == "{3D}"
+        assert (
+            _protect_mixed_case_words("H264") == "H264"
+        )  # No uppercase after first char
+
+        # Special characters only
+        assert _protect_mixed_case_words("@#$") == "@#$"
+
+        # Empty string
+        assert _protect_mixed_case_words("") == ""
+
+        # Only spaces
+        assert _protect_mixed_case_words("   ") == "   "
+
+    def test_all_caps_detection_with_numbers(self):
+        """Test all-caps detection with numbers and punctuation."""
+        entry = {"ID": "test", "title": "3D GPU RENDERING WITH IEEE 802.11"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "3D GPU RENDERING WITH IEEE 802.11"  # Unchanged
+
+    def test_all_caps_detection_mixed_case(self):
+        """Test that mixed case doesn't trigger all-caps warning."""
+        entry = {"ID": "test", "title": "3D GPU Rendering with IEEE 802.11"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "{3D} {GPU} Rendering with {IEEE} 802.11"
+
+    def test_double_braces_conversion_simple(self):
+        """Test double braces conversion for simple title."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {"ID": "test", "title": "{The Title}"}
+        result = fix_title_capitalization(entry)
+        assert (
+            result["title"] == "The Title"
+        )  # Converted (no mixed-case words to protect)
+
+    def test_single_braces_processed_normally(self):
+        """Test that single braces get processed normally (braces removed, protection applied)."""
+        entry = {"ID": "test", "title": "{The Title}"}
+        result = fix_title_capitalization(entry)
+        assert (
+            result["title"] == "The Title"
+        )  # Braces removed, no mixed-case protection needed
+
+    def test_complex_mixed_case_scenarios(self):
+        """Test complex mixed-case scenarios."""
+        # AutoMVQ example from user
+        text = "AutoMVQ algorithm for GPUs"
+        expected = "{AutoMVQ} algorithm for {GPUs}"
+        assert _protect_mixed_case_words(text) == expected
+
+        # Multiple uppercase after first char
+        text = "SQLite database"
+        expected = "{SQLite} database"
+        assert _protect_mixed_case_words(text) == expected
+
+        # Acronym in parentheses
+        text = "Machine Learning (ML) with GPUs"
+        expected = "Machine Learning {(ML)} with {GPUs}"
+        assert _protect_mixed_case_words(text) == expected
+
+    def test_protect_mixed_case_words_skip_already_braced(self):
+        """Test that already braced words are not double-protected."""
+        # Single already braced word
+        text = "Review of {CNN} architectures"
+        expected = "Review of {CNN} architectures"
+        assert _protect_mixed_case_words(text) == expected
+
+        # Multiple words, some already braced
+        text = "Deep learning with {CNN} and RNN networks"
+        expected = "Deep learning with {CNN} and {RNN} networks"
+        assert _protect_mixed_case_words(text) == expected
+
+        # Mixed case with already braced
+        text = (
+            "Review of deep learning: concepts, {CNN} architectures, and GPU computing"
+        )
+        expected = "Review of deep learning: concepts, {CNN} architectures, and {GPU} computing"
+        assert _protect_mixed_case_words(text) == expected
+
+        # User's specific example
+        text = "Review of deep learning: concepts, {CNN} architectures"
+        expected = "Review of deep learning: concepts, {CNN} architectures"
+        assert _protect_mixed_case_words(text) == expected
+
+    def test_fix_title_capitalization_with_existing_braces(self):
+        """Test title capitalization preserves existing braces."""
+        entry = {
+            "ID": "test",
+            "title": "Review of deep learning: concepts, {CNN} architectures, and GPU computing",
+        }
+        result = fix_title_capitalization(entry)
+        assert (
+            result["title"]
+            == "Review of deep learning: concepts, {CNN} architectures, and {GPU} computing"
+        )
+
+    def test_fix_title_double_braces_conversion(self):
+        """Test conversion of double-braced titles (as parsed by bibtexparser)."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {
+            "ID": "test",
+            "title": "{EchoTracker: Advancing Myocardial Point Tracking in Echocardiography}",
+        }
+        result = fix_title_capitalization(entry)
+        assert (
+            result["title"]
+            == "{EchoTracker:} Advancing Myocardial Point Tracking in Echocardiography"
+        )
+
+    def test_fix_booktitle_double_braces_conversion(self):
+        """Test conversion of double-braced booktitles (as parsed by bibtexparser)."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {
+            "ID": "test",
+            "booktitle": "{Proceedings of IEEE Conference on Computer Vision}",
+        }
+        result = fix_booktitle_capitalization(entry)
+        assert (
+            result["booktitle"] == "Proceedings of {IEEE} Conference on Computer Vision"
+        )
+
+    def test_fix_title_double_braces_with_mixed_case_words(self):
+        """Test double braces conversion with multiple mixed-case words."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {"ID": "test", "title": "{Deep Learning with CNN and RNN Networks}"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "Deep Learning with {CNN} and {RNN} Networks"
+
+    def test_fix_title_double_braces_with_existing_single_braces(self):
+        """Test double braces conversion preserving existing single braces."""
+        # After bibtexparser parses {{...}}, it becomes {...}
+        entry = {"ID": "test", "title": "{Review of {CNN} and GPU Computing}"}
+        result = fix_title_capitalization(entry)
+        assert result["title"] == "Review of {CNN} and {GPU} Computing"
+
+    def test_publisher_double_braces_still_warns(self):
+        """Test that publisher with double braces still triggers warning (not converted)."""
+        entry = {"ID": "test", "publisher": "{{IEEE}}"}
+        result = fix_publisher_capitalization(entry)
+        assert result["publisher"] == "{{IEEE}}"  # Unchanged, should trigger warning
+
+    def test_full_formatter_double_braces_conversion(self):
+        """Test double braces conversion through full formatter pipeline."""
+        import bibtexparser
+        from blackref.formatter import formatter
+
+        bib_text = """@article{test2023,
+            title = {{EchoTracker: Advancing Myocardial Point Tracking in Echocardiography}},
+            author = {Test Author},
+            year = {2023}
+        }"""
+
+        parser = bibtexparser.bparser.BibTexParser()
+        bib_db = parser.parse(bib_text)
+
+        result = formatter(
+            bib_db,
+            display_order=("ID", "ENTRYTYPE", "title", "author", "year"),
+            sort_fields=(),
+            utf8_fields=set(),
+            latex_fields=set(),
+            formatting_mode="full",
+        )
+
+        # Should not have triple braces in the final output
+        assert "{{{" not in result
+        # Should have proper single brace protection for the field content
+        assert (
+            "{EchoTracker:} Advancing Myocardial Point Tracking in Echocardiography"
+            in result
+        )
 
     def test_fix_doi_overwrite_empty_doi(self):
         """Test overwriting empty DOI field."""

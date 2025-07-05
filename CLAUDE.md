@@ -1,0 +1,1 @@
+- Use 'uv python' instead of 'python3' for Python environment management

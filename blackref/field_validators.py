@@ -216,3 +216,156 @@ def fix_month(entry: dict) -> dict:
         entry["month"] = month_mapping[month_value]
 
     return entry
+
+
+def fix_title_capitalization(entry: dict) -> dict:
+    """Fix title field capitalization with warnings and brace protection."""
+    return fix_field_capitalization(entry, "title")
+
+
+def fix_booktitle_capitalization(entry: dict) -> dict:
+    """Fix booktitle field capitalization with warnings and brace protection."""
+    return fix_field_capitalization(entry, "booktitle")
+
+
+def fix_publisher_capitalization(entry: dict) -> dict:
+    """Fix publisher field capitalization with special rules for single words."""
+    if "publisher" not in entry:
+        return entry
+
+    value = entry["publisher"].strip()
+    if not value:
+        return entry
+
+    # Check if entire field is protected with double braces
+    if value.startswith("{{") and value.endswith("}}"):
+        logger.warning(
+            f"Field 'publisher' in entry {entry.get('ID', 'unknown')} is entirely protected with braces: '{value}'"
+        )
+        return entry
+
+    # Special rule for publisher: if single word and all caps, protect it
+    words = value.split()
+    if len(words) == 1:
+        word = words[0]
+        # Check if it's already protected with single braces
+        if word.startswith("{") and word.endswith("}"):
+            return entry  # Already protected, don't double-protect
+
+        # Extract letters only for all-caps detection
+        letter_chars = re.findall(r"[a-zA-Z]", word)
+        if letter_chars and all(c.isupper() for c in letter_chars):
+            # Single word, all caps - protect it
+            entry["publisher"] = f"{{{word}}}"
+            return entry
+
+    # For multi-word publishers, use normal capitalization rules but skip all-caps warning
+    # Check if everything is capitalized (excluding spaces and punctuation)
+    letter_chars = re.findall(r"[a-zA-Z]", value)
+    if letter_chars and all(c.isupper() for c in letter_chars) and len(words) > 1:
+        logger.warning(
+            f"Field 'publisher' in entry {entry.get('ID', 'unknown')} is entirely capitalized: '{value}'"
+        )
+        return entry
+
+    # Apply normal mixed-case word protection
+    entry["publisher"] = _protect_mixed_case_words(value)
+    return entry
+
+
+def fix_field_capitalization(entry: dict, field: str) -> dict:
+    """Fix field capitalization with warnings and mixed-case word protection.
+
+    Rules:
+    1. Warn if everything is capitalized, then don't edit
+    2. If entire field is protected with double braces {{...}}, remove outer braces and apply normal protection
+    3. Otherwise, find single words with non-capital letters after first alphanumeric
+       character and protect them with braces
+    """
+    if field not in entry:
+        return entry
+
+    value = entry[field].strip()
+    if not value:
+        return entry
+
+    # Special handling for title and booktitle: if already wrapped in braces,
+    # remove them and apply protection, then let writer add them back
+    if (
+        field in ["title", "booktitle"]
+        and value.startswith("{")
+        and value.endswith("}")
+    ):
+        # This could be from {{...}} in source (parsed to {...}) or {...} in source
+        # Remove outer braces and apply normal mixed-case protection
+        inner_content = value[1:-1]  # Remove { and }
+        protected_content = _protect_mixed_case_words(inner_content)
+        # Don't wrap in extra braces - let the BibTeX writer handle the outer braces
+        entry[field] = protected_content
+        return entry
+
+    # Check if everything is capitalized (excluding spaces and punctuation)
+    # Only consider letters for all-caps detection, not numbers
+    letter_chars = re.findall(r"[a-zA-Z]", value)
+    if letter_chars and all(c.isupper() for c in letter_chars):
+        logger.warning(
+            f"Field '{field}' in entry {entry.get('ID', 'unknown')} is entirely capitalized: '{value}'"
+        )
+        return entry
+
+    # Check if entire field is protected with double braces (for non-title fields)
+    if value.startswith("{{") and value.endswith("}}"):
+        logger.warning(
+            f"Field '{field}' in entry {entry.get('ID', 'unknown')} is entirely protected with braces: '{value}'"
+        )
+        return entry
+
+    # Protect mixed-case words with braces
+    entry[field] = _protect_mixed_case_words(value)
+    return entry
+
+
+def _protect_mixed_case_words(text: str) -> str:
+    """Protect mixed-case words with braces, but skip already braced words.
+
+    A word needs protection if it has uppercase letters after the first
+    alphanumeric character (considering only alphanumeric characters).
+
+    Examples:
+    - 4D -> {4D}
+    - IEEE -> {IEEE}
+    - (IEEE) -> {(IEEE)}
+    - GPUs -> {GPUs}
+    - AutoMVQ -> {AutoMVQ}
+    - Ok -> Ok (no protection needed)
+    - {CNN} -> {CNN} (already protected, skip)
+    """
+
+    def should_protect_word(word: str) -> bool:
+        """Check if a word needs brace protection."""
+        # Skip if word is already protected with braces
+        if word.startswith("{") and word.endswith("}"):
+            return False
+
+        # Extract alphanumeric characters only
+        alphanumeric = re.findall(r"[a-zA-Z0-9]", word)
+        if len(alphanumeric) < 2:
+            return False
+
+        # Check if there are uppercase letters after the first alphanumeric character
+        return any(c.isupper() for c in alphanumeric[1:])
+
+    def protect_word(word: str) -> str:
+        """Wrap word in braces if it needs protection."""
+        if should_protect_word(word):
+            return f"{{{word}}}"
+        return word
+
+    # Handle edge case of whitespace-only text
+    if not text.strip():
+        return text
+
+    # Split on whitespace and protect each word individually
+    words = text.split()
+    protected_words = [protect_word(word) for word in words]
+    return " ".join(protected_words)
