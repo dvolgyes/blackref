@@ -40,7 +40,10 @@ def fix_wrap(
                 parts = wrapper.wrap(text)
         else:
             parts = wrapper.wrap(text)
-        result = f"\n{indent_text}".join(map(str.strip, parts))
+
+        # Align continuation lines with opening brace position
+        continuation_indent = " " * (indent + 5)
+        result = f"\n{continuation_indent}".join(map(str.strip, parts))
         return result
 
     if key.lower() in ["author", "editor"]:
@@ -67,7 +70,9 @@ def fix_wrap(
         keywords = keywords.split(",")
         keywords = ", ".join(map(str.strip, keywords))
         parts = wrapper.wrap(keywords)
-        result = f"\n{indent_text}".join(map(str.strip, parts))
+        # Align continuation lines with opening brace position
+        continuation_indent = " " * (indent + 5)
+        result = f"\n{continuation_indent}".join(map(str.strip, parts))
         return result.replace("_", " ")
 
     return text.strip()

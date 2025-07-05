@@ -9,6 +9,7 @@ from .field_validators import (
     fix_isbn,
     fix_issn,
     fix_pages,
+    fix_month,
 )
 from .text_utils import fix_wrap
 
@@ -40,6 +41,7 @@ def formatter(
     sort_fields: tuple,
     utf8_fields: set,
     latex_fields: set,
+    formatting_mode: str = "full",
 ) -> str:
     """Format BibTeX database with specified options."""
     writer = bibtexparser.bwriter.BibTexWriter()
@@ -51,12 +53,14 @@ def formatter(
 
     max_key_length = 10  # Minimum alignment
     for entry in bib.entries:
-        entry = remove_empty_keys(entry)
-        entry = fix_authors(entry, utf8_fields, latex_fields)
-        entry = fix_abstract(entry, utf8_fields, latex_fields)
-        entry = fix_isbn(entry)
-        entry = fix_issn(entry)
-        entry = fix_pages(entry)
+        if formatting_mode == "full":
+            entry = remove_empty_keys(entry)
+            entry = fix_authors(entry, utf8_fields, latex_fields)
+            entry = fix_abstract(entry, utf8_fields, latex_fields)
+            entry = fix_isbn(entry)
+            entry = fix_issn(entry)
+            entry = fix_pages(entry)
+            entry = fix_month(entry)
         for key in entry.keys():
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
 
@@ -65,7 +69,11 @@ def formatter(
 
     for entry in bib.entries:
         for key in entry.keys():
-            entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
+            if formatting_mode == "full":
+                entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
+            else:
+                # In basic mode, only apply basic text normalization
+                entry[key] = " ".join(str(entry[key]).split())
 
     for skey in reversed(sort_fields):
         reverse = skey[-1] == "-"

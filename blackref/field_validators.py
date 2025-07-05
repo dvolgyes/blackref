@@ -61,7 +61,9 @@ def fix_utf8_field(
     if field in utf8_fields:
         value = LatexNodes2Text().latex_to_text(value)
     elif field in latex_fields:
-        value = unicode_to_latex(value)
+        # Only apply LaTeX encoding if the text doesn't already contain LaTeX commands
+        if not ("{\\" in value or "\\'" in value or "\\\\" in value):
+            value = unicode_to_latex(value)
     entry[field] = value
 
     return entry
@@ -75,3 +77,42 @@ def fix_authors(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
 def fix_abstract(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
     """Fix abstract field encoding."""
     return fix_utf8_field(entry, "abstract", utf8_fields, latex_fields)
+
+
+def fix_month(entry: dict) -> dict:
+    """Convert month names to numbers."""
+    if "month" not in entry:
+        return entry
+
+    month_mapping = {
+        "january": "1",
+        "jan": "1",
+        "february": "2",
+        "feb": "2",
+        "march": "3",
+        "mar": "3",
+        "april": "4",
+        "apr": "4",
+        "may": "5",
+        "june": "6",
+        "jun": "6",
+        "july": "7",
+        "jul": "7",
+        "august": "8",
+        "aug": "8",
+        "september": "9",
+        "sep": "9",
+        "sept": "9",
+        "october": "10",
+        "oct": "10",
+        "november": "11",
+        "nov": "11",
+        "december": "12",
+        "dec": "12",
+    }
+
+    month_value = entry["month"].strip().lower()
+    if month_value in month_mapping:
+        entry["month"] = month_mapping[month_value]
+
+    return entry

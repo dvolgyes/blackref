@@ -41,6 +41,19 @@ DEFAULT_ORDER = ",".join(
     help="Write modifications back to the original file.",
 )
 @click.option(
+    "--basic",
+    "formatting_mode",
+    flag_value="basic",
+    help="Apply only indentation and sorting (field and entry).",
+)
+@click.option(
+    "--full",
+    "formatting_mode",
+    flag_value="full",
+    default=True,
+    help="Apply all formatting rules and changes (default).",
+)
+@click.option(
     "-U",
     "--utf8",
     default="abstract",
@@ -67,7 +80,7 @@ DEFAULT_ORDER = ",".join(
     default=DEFAULT_ORDER,
     help="Order of display for BibTeX fields.",
 )
-def main(src, write_back, utf8, latex, output, sort, display_order):
+def main(src, write_back, formatting_mode, utf8, latex, output, sort, display_order):
     """The uncompromising reference formatter."""
 
     # Process arguments
@@ -76,10 +89,6 @@ def main(src, write_back, utf8, latex, output, sort, display_order):
     latex_fields = {x.strip() for x in latex.lower().split(",")}
     utf8_fields = utf8_fields - latex_fields
     display_order_fields = tuple(x.strip() for x in display_order.split(","))
-
-    # Handle write-back logic
-    if write_back and output == sys.stdout and src != sys.stdin:
-        output = open(src.name, "w")
 
     # Validate input file
     if (
@@ -96,11 +105,22 @@ def main(src, write_back, utf8, latex, output, sort, display_order):
     content = src.read()
     bib = bibtexparser.loads(content)
     formatted_output = formatter(
-        bib, display_order_fields, sort_fields, utf8_fields, latex_fields
+        bib,
+        display_order_fields,
+        sort_fields,
+        utf8_fields,
+        latex_fields,
+        formatting_mode,
     )
+
+    # Handle write-back logic - need to capture input filename before reassigning output
+    input_filename = None
+    if write_back and output == sys.stdout and src != sys.stdin:
+        input_filename = src.name
+        output = open(input_filename, "w")
 
     output.write(formatted_output)
 
     # Close output if we opened it for write-back
-    if write_back and output != sys.stdout:
+    if write_back and input_filename:
         output.close()
