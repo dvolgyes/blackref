@@ -313,6 +313,34 @@ def fix_journal_capitalization(entry: dict) -> dict:
     return entry
 
 
+def _has_matching_outer_braces(text: str) -> bool:
+    """Check if text has matching outer braces that wrap the entire content.
+
+    Returns True only if the first { and last } form a matching pair that
+    encompasses the entire text content.
+
+    Examples:
+    - "{content}" -> True
+    - "{CPUs} and {GPUs}" -> True (outer braces wrap everything)
+    - "{CPUs} {GPUs}" -> False (first { and last } are from different words)
+    """
+    if not (text.startswith("{") and text.endswith("}")):
+        return False
+
+    # Track brace depth to see if first and last braces match
+    depth = 0
+    for i, char in enumerate(text):
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            # If we hit depth 0 before the last character, the first and last braces don't match
+            if depth == 0 and i < len(text) - 1:
+                return False
+
+    return depth == 0
+
+
 def fix_field_capitalization(entry: dict, field: str) -> dict:
     """Fix field capitalization with warnings and mixed-case word protection.
 
@@ -329,13 +357,9 @@ def fix_field_capitalization(entry: dict, field: str) -> dict:
     if not value:
         return entry
 
-    # Special handling for title and booktitle: if already wrapped in braces,
+    # Special handling for title and booktitle: if already wrapped in matching outer braces,
     # check if it came from double braces and handle appropriately
-    if (
-        field in ["title", "booktitle"]
-        and value.startswith("{")
-        and value.endswith("}")
-    ):
+    if field in ["title", "booktitle"] and _has_matching_outer_braces(value):
         # This could be from {{...}} in source (parsed to {...}) or {...} in source
         inner_content = value[1:-1]  # Remove outer { and }
 
@@ -351,7 +375,7 @@ def fix_field_capitalization(entry: dict, field: str) -> dict:
             # Preserve as-is since this was intentionally double-braced
             return entry
 
-        # If no internal braces, apply normal mixed-case protection
+        # Apply normal mixed-case protection to inner content
         protected_content = _protect_mixed_case_words(inner_content)
         # Don't wrap in extra braces - let the BibTeX writer handle the outer braces
         entry[field] = protected_content

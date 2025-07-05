@@ -948,6 +948,52 @@ class TestCapitalizationRules:
         # Should preserve the mixed brace structure, not create double braces
         assert result["title"] == "{DeepGCNs:} Can {GCNs} Go As Deep As {CNNs?}"
 
+    def test_title_cpus_gpus_normalization(self):
+        """Test various CPU/GPU title formats normalize to same result."""
+        expected = "{CPUs} and {GPUs}"
+
+        # From {{CPUs} and {GPUs}} (bibtex source) -> {CPUs} and {GPUs} (already in final form)
+        entry1 = {"ID": "test", "title": "{CPUs} and {GPUs}"}
+        result1 = fix_title_capitalization(entry1)
+        assert result1["title"] == expected
+
+        # From {{{CPUs} and {GPUs}}} -> {{CPUs} and {GPUs}} -> {CPUs} and {GPUs}
+        entry2 = {"ID": "test", "title": "{{CPUs} and {GPUs}}"}
+        result2 = fix_title_capitalization(entry2)
+        assert result2["title"] == expected
+
+        # From {CPUs and GPUs} -> CPUs and GPUs -> {CPUs} and {GPUs}
+        entry3 = {"ID": "test", "title": "CPUs and GPUs"}
+        result3 = fix_title_capitalization(entry3)
+        assert result3["title"] == expected
+
+    def test_title_non_matching_outer_braces(self):
+        """Test that non-matching first and last braces are not treated as outer braces."""
+        # {A} {B} - first { and last } are not a matching pair
+        entry = {"ID": "test", "title": "{CPUs} {GPUs}"}
+        result = fix_title_capitalization(entry)
+        # Should preserve both individual protections
+        assert result["title"] == "{CPUs} {GPUs}"
+
+    def test_has_matching_outer_braces(self):
+        """Test the _has_matching_outer_braces helper function."""
+        from blackref.field_validators import _has_matching_outer_braces
+
+        # Should return True - matching outer braces
+        assert _has_matching_outer_braces("{content}")
+        assert _has_matching_outer_braces("{{CPUs} and {GPUs}}")
+        assert _has_matching_outer_braces("{simple text}")
+
+        # Should return False - non-matching first and last braces
+        assert not _has_matching_outer_braces("{CPUs} and {GPUs}")
+        assert not _has_matching_outer_braces("{CPUs} {GPUs}")
+        assert not _has_matching_outer_braces("{A} {B} {C}")
+
+        # Should return False - no braces or incomplete braces
+        assert not _has_matching_outer_braces("no braces")
+        assert not _has_matching_outer_braces("{incomplete")
+        assert not _has_matching_outer_braces("incomplete}")
+
     def test_protect_mixed_case_words_edge_cases(self):
         """Test edge cases for mixed-case word protection."""
         # Single character words
