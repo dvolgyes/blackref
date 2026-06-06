@@ -113,6 +113,47 @@ class TestCLI:
             # Check that file still exists (was modified in place)
             assert os.path.exists("test.bib")
 
+    def test_cli_write_back_multiple_files(self):
+        """Test write-back functionality for multiple files."""
+        runner = CliRunner()
+        bib_content = """@article{test2023,
+    title = {Test Title},
+    author = {Test Author},
+    year = {2023}
+}"""
+
+        with runner.isolated_filesystem():
+            for filename in ["first.bib", "second.bib"]:
+                with open(filename, "w") as f:
+                    f.write(bib_content)
+
+            result = runner.invoke(
+                main,
+                ["--write-back", "first.bib", "second.bib"],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert os.path.exists("first.bib")
+            assert os.path.exists("second.bib")
+
+    def test_cli_multiple_files_require_write_back(self):
+        """Test that multiple input files require write-back mode."""
+        runner = CliRunner()
+        bib_content = """@article{test2023,
+    title = {Test Title}
+}"""
+
+        with runner.isolated_filesystem():
+            for filename in ["first.bib", "second.bib"]:
+                with open(filename, "w") as f:
+                    f.write(bib_content)
+
+            result = runner.invoke(main, ["first.bib", "second.bib"])
+
+            assert result.exit_code != 0
+            assert "Multiple input files require --write-back" in result.output
+
     def test_cli_sort_option(self):
         """Test custom sorting option."""
         runner = CliRunner()

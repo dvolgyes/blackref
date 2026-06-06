@@ -1,7 +1,7 @@
 -   id: blackref
     name: blackref
     description: 'Blackref: The uncompromising BibTeX-file formatter'
-    entry: blackref
+    entry: blackref --write-back
     language: python
     language_version: python3
     require_serial: true

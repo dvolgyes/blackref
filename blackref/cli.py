@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Command-line interface for blackref."""
 
-import sys
 from pathlib import Path
 from typing import TextIO
+
 import click
 import bibtexparser
+
 from .formatter import formatter
 
 
@@ -15,8 +16,35 @@ DEFAULT_ORDER = (
 )
 
 
+def _format_content(
+    content: str,
+    *,
+    display_order_fields: tuple[str, ...],
+    sort_fields: tuple[str, ...],
+    utf8_fields: set[str],
+    latex_fields: set[str],
+    formatting_mode: str,
+    wayback: bool,
+) -> str:
+    """Format one BibTeX document."""
+    bib = bibtexparser.loads(content)
+    return formatter(
+        bib,
+        display_order_fields,
+        sort_fields,
+        utf8_fields,
+        latex_fields,
+        formatting_mode,
+        wayback,
+    )
+
+
 @click.command()
-@click.argument("src", type=click.File("r"), default="-")
+@click.argument(
+    "src",
+    nargs=-1,
+    type=click.Path(exists=True, dir_okay=False),
+)
 @click.option(
     "-w",
     "--write-back",
@@ -67,7 +95,7 @@ DEFAULT_ORDER = (
     help="Archive URLs using Wayback Machine and add urldate fields.",
 )
 def main(
-    src: TextIO,
+    src: tuple[str, ...],
     write_back: bool,
     formatting_mode: str,
     utf8: str,
@@ -78,48 +106,53 @@ def main(
     wayback: bool,
 ) -> None:
     """The uncompromising reference formatter."""
-
-    # Process arguments
     sort_fields = tuple(x.strip() for x in sort.split(","))
     utf8_fields = {x.strip() for x in utf8.lower().split(",")}
     latex_fields = {x.strip() for x in latex.lower().split(",")}
-    # Remove UTF-8 fields from LaTeX fields to give UTF-8 precedence
     latex_fields = latex_fields - utf8_fields
     display_order_fields = tuple(x.strip() for x in display_order.split(","))
 
-    # Validate input file
-    is_stdin = getattr(src, "name", None) == "<stdin>"
-    is_stdout = getattr(output, "name", None) == "<stdout>"
+    if not src and write_back:
+        raise click.ClickException("--write-back requires at least one input file.")
 
-    if (
-        not is_stdin
-        and hasattr(src, "name")
-        and src.name
-        and not Path(src.name).exists()
-    ):
-        click.echo(f"Invalid input file: {src.name}", err=True)
-        sys.exit(-1)
+    if len(src) > 1 and not write_back:
+        raise click.ClickException("Multiple input files require --write-back.")
 
-    # Handle write-back logic - need to capture input filename before reassigning output
-    input_filename = None
-    if write_back and is_stdout and not is_stdin:
-        input_filename = src.name
-
-    # Process the BibTeX file
-    content = src.read()
-    bib = bibtexparser.loads(content)
-    formatted_output = formatter(
-        bib,
-        display_order_fields,
-        sort_fields,
-        utf8_fields,
-        latex_fields,
-        formatting_mode,
-        wayback,
-    )
-
-    if input_filename:
-        Path(input_filename).write_text(formatted_output, encoding="utf-8")
+    if not src:
+        content = click.get_text_stream("stdin").read()
+        formatted_output = _format_content(
+            content,
+            display_order_fields=display_order_fields,
+            sort_fields=sort_fields,
+            utf8_fields=utf8_fields,
+            latex_fields=latex_fields,
+            formatting_mode=formatting_mode,
+            wayback=wayback,
+        )
+        output.write(formatted_output)
         return
 
+    if write_back:
+        for path in (Path(item) for item in src):
+            formatted_output = _format_content(
+                path.read_text(encoding="utf-8"),
+                display_order_fields=display_order_fields,
+                sort_fields=sort_fields,
+                utf8_fields=utf8_fields,
+                latex_fields=latex_fields,
+                formatting_mode=formatting_mode,
+                wayback=wayback,
+            )
+            path.write_text(formatted_output, encoding="utf-8")
+        return
+
+    formatted_output = _format_content(
+        Path(src[0]).read_text(encoding="utf-8"),
+        display_order_fields=display_order_fields,
+        sort_fields=sort_fields,
+        utf8_fields=utf8_fields,
+        latex_fields=latex_fields,
+        formatting_mode=formatting_mode,
+        wayback=wayback,
+    )
     output.write(formatted_output)

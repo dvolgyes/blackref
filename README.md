@@ -22,60 +22,51 @@
 - **In-place Modification**: Can modify files directly for convenience.
 - **Unix Philosophy**: Reads from `stdin` and writes to `stdout` by default, making it easy to pipe and integrate into scripts.
 
-## Installation
+## Usage
 
-You can install `blackref` using `uv`:
-
-```bash
-uv tool install blackref
-```
-
-Alternatively, you can run it directly without installation using `uvx`:
+Run the package directly with `uvx`:
 
 ```bash
 uvx blackref my_references.bib
 ```
 
-## Usage
-
-### Basic Formatting
-
-To format a file and print the result to the console:
-
-```bash
-blackref my_references.bib
-```
-
 You can also use it with pipes:
 
 ```bash
-cat my_references.bib | blackref > formatted_references.bib
+cat my_references.bib | uvx blackref > formatted_references.bib
 ```
 
-### In-place Formatting
-
-To modify a file directly (write-back mode):
+To modify a file directly, use write-back mode:
 
 ```bash
-blackref --write-back my_references.bib
+uvx blackref --write-back my_references.bib
 ```
 
-### Sorting Entries
-
-You can specify which fields to sort the entries by. The default is to sort by the BibTeX entry ID (`ID`).
-
-To sort by author, then year:
+You can specify which fields to sort the entries by. The default is to sort by
+the BibTeX entry ID (`ID`).
 
 ```bash
-blackref --sort "author,year" my_references.bib
+uvx blackref --sort "author,year" my_references.bib
 ```
 
-### Customizing Field Display Order
-
-`blackref` uses a default order for fields within each entry. You can override this with the `--display-order` option.
+`blackref` uses a default order for fields within each entry. You can override
+this with the `--display-order` option.
 
 ```bash
-blackref --display-order "author,title,year,journal" my_references.bib
+uvx blackref --display-order "author,title,year,journal" my_references.bib
+```
+
+## Pre-commit hooks
+
+You can format BibTeX and BibLaTeX files automatically before committing them to
+git.
+
+```yaml
+repos:
+- repo: https://github.com/dvolgyes/blackref
+  rev: v0.2.0
+  hooks:
+  - id: blackref
 ```
 
 ## Complementary Tool: `reflint`
