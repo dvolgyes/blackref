@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """BibTeX formatting and processing functions."""
 
+from pathlib import Path
+from types import TracebackType
+from typing import IO, cast
+
 import bibtexparser
 from .field_validators import (
     remove_empty_keys,
@@ -19,6 +23,11 @@ from .field_validators import (
     fix_booktitle_capitalization,
     fix_publisher_capitalization,
     fix_journal_capitalization,
+    fix_title_periods,
+    fix_booktitle_periods,
+    fix_publisher_periods,
+    fix_journal_periods,
+    fix_url_archiving,
 )
 from .text_utils import fix_wrap
 
@@ -26,31 +35,38 @@ from .text_utils import fix_wrap
 class LazyOpen:
     """Context manager for lazy file opening."""
 
-    def __init__(self, s, mode: str):
+    def __init__(self, s: str | IO[str], mode: str) -> None:
         self.s = s
         self.mode = mode
-        self.fh = None
+        self.fh: IO[str] | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> IO[str]:
         if isinstance(self.s, str):
-            self.fh = open(self.s, self.mode)
+            self.fh = Path(self.s).open(self.mode, encoding="utf-8")
         else:
             self.fh = self.s
         return self.fh
 
-    def __exit__(self, *exc):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         if isinstance(self.s, str):
+            if self.fh is None:
+                return
             self.fh.close()
-        return
 
 
 def formatter(
     bib: bibtexparser.bibdatabase.BibDatabase,
-    display_order: tuple,
-    sort_fields: tuple,
-    utf8_fields: set,
-    latex_fields: set,
+    display_order: tuple[str, ...],
+    sort_fields: tuple[str, ...],
+    utf8_fields: set[str],
+    latex_fields: set[str],
     formatting_mode: str = "full",
+    wayback: bool = False,
 ) -> str:
     """Format BibTeX database with specified options."""
     writer = bibtexparser.bwriter.BibTexWriter()
@@ -82,14 +98,22 @@ def formatter(
             entry = fix_booktitle_capitalization(entry)
             entry = fix_publisher_capitalization(entry)
             entry = fix_journal_capitalization(entry)
-        for key in entry.keys():
+            # Remove trailing periods from title fields
+            entry = fix_title_periods(entry)
+            entry = fix_booktitle_periods(entry)
+            entry = fix_publisher_periods(entry)
+            entry = fix_journal_periods(entry)
+            # Archive URLs and add urldate (only if wayback flag is enabled)
+            if wayback:
+                entry = fix_url_archiving(entry)
+        for key in entry:
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
 
     # Set align_values to the calculated maximum key length (minimum 10)
     writer.align_values = max_key_length
 
     for entry in bib.entries:
-        for key in entry.keys():
+        for key in entry:
             if formatting_mode == "full":
                 entry[key] = fix_wrap(entry[key], key, indent=max_key_length)
             else:
@@ -104,4 +128,4 @@ def formatter(
             bib.entries, key=lambda x: x.get(skey, "").lower(), reverse=reverse
         )
 
-    return writer.write(bib)
+    return cast(str, writer.write(bib))

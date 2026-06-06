@@ -1,6 +1,9 @@
 # Blackref: An Uncompromising BibTeX/BibLaTeX Formatter
 
 [![PyPI version](https://img.shields.io/pypi/v/blackref.svg)](https://pypi.org/project/blackref/)
+[![Python versions](https://img.shields.io/pypi/pyversions/blackref.svg)](https://pypi.org/project/blackref/)
+[![Tests](https://github.com/dvolgyes/blackref/actions/workflows/test.yml/badge.svg)](https://github.com/dvolgyes/blackref/actions/workflows/test.yml)
+[![Coverage Status](https://coveralls.io/repos/github/dvolgyes/blackref/badge.svg?branch=main)](https://coveralls.io/github/dvolgyes/blackref?branch=main)
 [![License](https://img.shields.io/pypi/l/blackref.svg)](https://github.com/dvolgyes/blackref/blob/master/LICENSE.txt)
 
 `blackref` is a command-line tool that automatically formats your BibTeX and BibLaTeX files to be consistent, readable, and clean. Inspired by the `black` code formatter for Python, it enforces a strict, opinionated style, leaving no room for configuration. This ensures that your reference files are always perfectly formatted, allowing you to focus on the content, not the style.

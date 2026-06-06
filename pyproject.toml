@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
 
 [project]
 name = "blackref"
-dynamic = ["version"]
+version = "0.2.0"
 description = "An uncompromising BibTeX/BibLaTeX reference list formatter."
 readme = "README.md"
 license = { text = "AGPL-3.0" }
@@ -19,14 +19,16 @@ classifiers = [
     "Natural Language :: English",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dependencies = [
-    "bibtexparser",
-    "click>=8.2.1",
-    "isbnlib",
-    "loguru>=0.7.3",
-    "pylatexenc",
+    "bibtexparser~=1.4.4",
+    "click~=8.2",
+    "httpx2~=2.3",
+    "isbnlib~=3.10.14",
+    "loguru~=0.7.3",
+    "pylatexenc~=2.10",
 ]
 
 [project.urls]
@@ -37,24 +39,15 @@ Issues = "https://github.com/dvolgyes/blackref/issues"
 [project.scripts]
 blackref = "blackref.__init__:main"
 
-[tool.hatch.build.targets.wheel]
-packages = ["blackref"]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/blackref",
-    "/tests",
-    "/README.md",
-    "/LICENSE.txt",
-]
-
-[tool.hatch.version]
-source = "vcs"
+[tool.uv.build-backend]
+module-root = ""
+source-include = ["LICENSE.txt", "tests/**"]
 
 [dependency-groups]
 dev = [
-    "coverage>=7.9.1",
-    "hatch-vcs>=0.5.0",
-    "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
+    "coverage>=7.9.1,<8",
+    "coveralls~=4.1",
+    "pytest~=8.4",
+    "pytest-cov~=6.2",
+    "pytest-xdist~=3.8",
 ]

@@ -1,0 +1,1 @@
+2026-06-06: `LICENSE.txt` contains MIT license text while `pyproject.toml`, `README.md`, and `blackref.__license__` declare AGPL; uv_build rejected adding `project.license-files` alongside the legacy license table, so the build migration preserves existing license metadata until the project license is clarified.

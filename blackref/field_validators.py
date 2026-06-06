@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Field validation and fixing functions for BibTeX entries."""
 
-import re
+# ruff: noqa: RUF001, RUF002, RUF003
+
 import html
+import re
+from datetime import datetime
+
+import httpx
 import isbnlib
+from loguru import logger
 from pylatexenc.latex2text import LatexNodes2Text
 from pylatexenc.latexencode import unicode_to_latex
-from loguru import logger
+
+BibEntry = dict[str, str]
 
 
-def fix_html_entities(entry: dict) -> dict:
+def fix_html_entities(entry: BibEntry) -> BibEntry:
     """Convert HTML entities to appropriate LaTeX or UTF-8 equivalents in all text fields."""
     text_fields = [
         "title",
@@ -188,9 +195,7 @@ def _convert_html_entities(text: str) -> str:
 
     # Final step: escape any remaining bare ampersands for LaTeX
     # Only escape & that are not already escaped (i.e., not preceded by backslash)
-    text = re.sub(r"(?<!\\)&", r"\\&", text)
-
-    return text
+    return re.sub(r"(?<!\\)&", r"\\&", text)
 
 
 def _check_for_inappropriate_symbols(text: str, field: str, entry_id: str) -> None:
@@ -291,7 +296,7 @@ def _check_for_inappropriate_symbols(text: str, field: str, entry_id: str) -> No
         )
 
 
-def fix_isbn(entry: dict) -> dict:
+def fix_isbn(entry: BibEntry) -> BibEntry:
     """Fix and validate ISBN format."""
     if "isbn" in entry:
         value = entry["isbn"]
@@ -303,7 +308,7 @@ def fix_isbn(entry: dict) -> dict:
     return entry
 
 
-def fix_issn(entry: dict) -> dict:
+def fix_issn(entry: BibEntry) -> BibEntry:
     """Fix and validate ISSN format."""
     if "issn" in entry:
         # Remove all spaces and dashes first
@@ -316,7 +321,7 @@ def fix_issn(entry: dict) -> dict:
     return entry
 
 
-def fix_pages(entry: dict) -> dict:
+def fix_pages(entry: BibEntry) -> BibEntry:
     """Fix page number format and normalize 'page' field to 'pages'."""
     # Handle 'page' field conversion to 'pages'
     if "page" in entry:
@@ -338,7 +343,7 @@ def fix_pages(entry: dict) -> dict:
     return entry
 
 
-def remove_empty_keys(entry: dict) -> dict:
+def remove_empty_keys(entry: BibEntry) -> BibEntry:
     """Remove empty or None fields from entry."""
     for key in list(entry.keys()):
         if entry[key] is None:
@@ -350,8 +355,8 @@ def remove_empty_keys(entry: dict) -> dict:
 
 
 def fix_utf8_field(
-    entry: dict, field: str, utf8_fields: set, latex_fields: set
-) -> dict:
+    entry: BibEntry, field: str, utf8_fields: set[str], latex_fields: set[str]
+) -> BibEntry:
     """Convert field between UTF-8 and LaTeX encoding."""
     if field not in entry:
         return entry
@@ -382,7 +387,9 @@ def fix_utf8_field(
     return entry
 
 
-def fix_authors(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
+def fix_authors(
+    entry: BibEntry, utf8_fields: set[str], latex_fields: set[str]
+) -> BibEntry:
     """Fix author field encoding and replace & variants with 'and'."""
     if "author" in entry:
         # Replace & variants with proper BibTeX 'and' separator
@@ -398,12 +405,14 @@ def fix_authors(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
     return fix_utf8_field(entry, "author", utf8_fields, latex_fields)
 
 
-def fix_abstract(entry: dict, utf8_fields: set, latex_fields: set) -> dict:
+def fix_abstract(
+    entry: BibEntry, utf8_fields: set[str], latex_fields: set[str]
+) -> BibEntry:
     """Fix abstract field encoding."""
     return fix_utf8_field(entry, "abstract", utf8_fields, latex_fields)
 
 
-def fix_unicode_dashes(entry: dict, field: str) -> dict:
+def fix_unicode_dashes(entry: BibEntry, field: str) -> BibEntry:
     """Replace Unicode dashes with LaTeX equivalents in text fields.
 
     En-dash (–) becomes -- (double hyphen)
@@ -421,22 +430,22 @@ def fix_unicode_dashes(entry: dict, field: str) -> dict:
     return entry
 
 
-def fix_title_dashes(entry: dict) -> dict:
+def fix_title_dashes(entry: BibEntry) -> BibEntry:
     """Fix Unicode dashes in title field."""
     return fix_unicode_dashes(entry, "title")
 
 
-def fix_booktitle_dashes(entry: dict) -> dict:
+def fix_booktitle_dashes(entry: BibEntry) -> BibEntry:
     """Fix Unicode dashes in booktitle field."""
     return fix_unicode_dashes(entry, "booktitle")
 
 
-def fix_abstract_dashes(entry: dict) -> dict:
+def fix_abstract_dashes(entry: BibEntry) -> BibEntry:
     """Fix Unicode dashes in abstract field."""
     return fix_unicode_dashes(entry, "abstract")
 
 
-def fix_doi(entry: dict) -> dict:
+def fix_doi(entry: BibEntry) -> BibEntry:
     """Fix DOI field by extracting from URL if needed.
 
     - If URL points to DOI (http[s]://[dx.]doi.org/{DOI}), extract {DOI}
@@ -485,11 +494,10 @@ def fix_doi(entry: dict) -> dict:
                         f"DOI mismatch in entry {entry.get('ID', 'unknown')}: existing='{existing_doi}' vs arXiv URL='{arxiv_doi}'"
                     )
                     return entry  # Don't change anything on mismatch
-                else:
-                    # DOI exists and matches (case insensitive), just remove URL and fix DOI case
-                    entry["doi"] = existing_doi_fixed
-                    entry.pop("url")
-                    return entry
+                # DOI exists and matches (case insensitive), just remove URL and fix DOI case
+                entry["doi"] = existing_doi_fixed
+                entry.pop("url")
+                return entry
 
         # Set the arXiv DOI and remove URL
         entry["doi"] = arxiv_doi
@@ -513,7 +521,7 @@ def fix_doi(entry: dict) -> dict:
                 f"DOI mismatch in entry {entry.get('ID', 'unknown')}: existing='{existing_doi}' vs URL='{extracted_doi}'"
             )
             return entry  # Don't change anything on mismatch
-        elif existing_doi:
+        if existing_doi:
             # DOI exists and matches (case insensitive), just remove URL and preserve existing DOI
             entry.pop("url")
             return entry
@@ -539,7 +547,7 @@ def _fix_arxiv_doi_case(doi: str) -> str:
     return doi  # Return unchanged if not an arXiv DOI
 
 
-def fix_month(entry: dict) -> dict:
+def fix_month(entry: BibEntry) -> BibEntry:
     """Convert month names to numbers."""
     if "month" not in entry:
         return entry
@@ -578,17 +586,17 @@ def fix_month(entry: dict) -> dict:
     return entry
 
 
-def fix_title_capitalization(entry: dict) -> dict:
+def fix_title_capitalization(entry: BibEntry) -> BibEntry:
     """Fix title field capitalization with warnings and brace protection."""
     return fix_field_capitalization(entry, "title")
 
 
-def fix_booktitle_capitalization(entry: dict) -> dict:
+def fix_booktitle_capitalization(entry: BibEntry) -> BibEntry:
     """Fix booktitle field capitalization with warnings and brace protection."""
     return fix_field_capitalization(entry, "booktitle")
 
 
-def fix_publisher_capitalization(entry: dict) -> dict:
+def fix_publisher_capitalization(entry: BibEntry) -> BibEntry:
     """Fix publisher field capitalization with special rules for single words."""
     if "publisher" not in entry:
         return entry
@@ -633,7 +641,7 @@ def fix_publisher_capitalization(entry: dict) -> dict:
     return entry
 
 
-def fix_journal_capitalization(entry: dict) -> dict:
+def fix_journal_capitalization(entry: BibEntry) -> BibEntry:
     """Fix journal field capitalization with special rules similar to publisher."""
     if "journal" not in entry:
         return entry
@@ -663,10 +671,9 @@ def fix_journal_capitalization(entry: dict) -> dict:
                 f"Field 'journal' in entry {entry.get('ID', 'unknown')} is entirely capitalized (multi-word): '{value}'"
             )
             return entry
-        else:
-            # Single word all caps journal - protect the entire field
-            entry["journal"] = f"{{{value}}}"
-            return entry
+        # Single word all caps journal - protect the entire field
+        entry["journal"] = f"{{{value}}}"
+        return entry
 
     # Apply normal mixed-case word protection
     entry["journal"] = _protect_mixed_case_words(value)
@@ -701,7 +708,7 @@ def _has_matching_outer_braces(text: str) -> bool:
     return depth == 0
 
 
-def fix_field_capitalization(entry: dict, field: str) -> dict:
+def fix_field_capitalization(entry: BibEntry, field: str) -> BibEntry:
     """Fix field capitalization with warnings and mixed-case word protection.
 
     Rules:
@@ -806,3 +813,286 @@ def _protect_mixed_case_words(text: str) -> str:
     words = text.split()
     protected_words = [protect_word(word) for word in words]
     return " ".join(protected_words)
+
+
+def remove_trailing_period(entry: BibEntry, field: str) -> BibEntry:
+    """Remove trailing period from field while preserving protecting braces.
+
+    Handles cases like:
+    - "Title." -> "Title"
+    - "Title.}" -> "Title}"
+    - "{Title.}" -> "{Title}"
+    - "Title with {LaTeX}." -> "Title with {LaTeX}"
+    """
+    if field not in entry:
+        return entry
+
+    value = entry[field].strip()
+    if not value:
+        return entry
+
+    # Check if ends with period or period followed by closing brace
+    if value.endswith("."):
+        # Remove trailing period
+        entry[field] = value[:-1]
+    elif value.endswith(".}"):
+        # Remove period but keep closing brace
+        entry[field] = value[:-2] + "}"
+
+    return entry
+
+
+def fix_title_periods(entry: BibEntry) -> BibEntry:
+    """Remove trailing periods from title field."""
+    return remove_trailing_period(entry, "title")
+
+
+def fix_booktitle_periods(entry: BibEntry) -> BibEntry:
+    """Remove trailing periods from booktitle field."""
+    return remove_trailing_period(entry, "booktitle")
+
+
+def fix_publisher_periods(entry: BibEntry) -> BibEntry:
+    """Remove trailing periods from publisher field, but preserve abbreviations.
+
+    Preserves periods after words of 4 characters or less (likely abbreviations
+    like Inc., Ltd., Corp., Co., etc.).
+    """
+    if "publisher" not in entry:
+        return entry
+
+    value = entry["publisher"].strip()
+    if not value:
+        return entry
+
+    # Check if ends with period or period followed by closing brace
+    if value.endswith("."):
+        # Get the last word before the period
+        # Handle both "word." and "word.}" cases
+        text_before_period = value[:-1]
+        last_word = _get_last_word(text_before_period)
+
+        # If last word is 4 characters or less, it's likely an abbreviation - keep the period
+        if len(last_word) <= 4:
+            return entry
+
+        # Remove trailing period for longer words
+        entry["publisher"] = value[:-1]
+    elif value.endswith(".}"):
+        # Get the text before ".}"
+        text_before_period = value[:-2]
+        last_word = _get_last_word(text_before_period)
+
+        # If last word is 4 characters or less, keep the period
+        if len(last_word) <= 4:
+            return entry
+
+        # Remove period but keep closing brace
+        entry["publisher"] = value[:-2] + "}"
+
+    return entry
+
+
+def _get_last_word(text: str) -> str:
+    """Extract the last word from text, handling braces and punctuation.
+
+    Examples:
+    - "Academic Press" -> "Press"
+    - "Company {LLC}" -> "LLC"
+    - "Publisher Inc" -> "Inc"
+    - "{ACM} Press" -> "Press"
+    """
+    if not text:
+        return ""
+
+    # Remove trailing/leading braces if they wrap the entire text
+    text = text.strip()
+    if text.startswith("{") and text.endswith("}") and _has_matching_outer_braces(text):
+        text = text[1:-1]
+
+    # Split on whitespace and get the last word
+    words = text.split()
+    if not words:
+        return ""
+
+    last_word = words[-1]
+
+    # If the last word is wrapped in braces, extract the content
+    if last_word.startswith("{") and last_word.endswith("}"):
+        last_word = last_word[1:-1]
+
+    # Remove non-alphabetic characters from the end for length calculation
+    # but only count alphabetic characters for abbreviation detection
+    return "".join(c for c in last_word if c.isalpha())
+
+
+def fix_journal_periods(entry: BibEntry) -> BibEntry:
+    """Remove trailing periods from journal field."""
+    return remove_trailing_period(entry, "journal")
+
+
+def fix_url_archiving(entry: BibEntry) -> BibEntry:
+    """Archive URLs and add urldate field.
+
+    For entries with 'url' field:
+    1. If URL is not from web.archive.org, check for existing archive from today
+    2. If no archive from today exists, create one using Wayback Machine
+    3. Update URL to point to archived version
+    4. Add/update urldate field with archive date in YYYY-MM-DD format
+    """
+    if "url" not in entry:
+        return entry
+
+    url = entry["url"].strip()
+    if not url:
+        return entry
+
+    try:
+        # Check if URL is already archived
+        if is_wayback_url(url):
+            # Extract date from wayback URL and set urldate
+            archive_date = extract_wayback_date(url)
+            if archive_date:
+                entry["urldate"] = archive_date
+            return entry
+
+        # For non-archived URLs, get or create archive
+        today = datetime.now().strftime("%Y%m%d")
+
+        # Check if there's already an archive from today
+        archived_url = get_wayback_snapshot(url, today)
+
+        if not archived_url:
+            # No archive from today, create one
+            logger.info(f"Creating Wayback Machine archive for: {url}")
+            archived_url = create_wayback_archive(url)
+
+        if archived_url:
+            entry["url"] = archived_url
+            archive_date = extract_wayback_date(archived_url)
+            if archive_date:
+                entry["urldate"] = archive_date
+        else:
+            # Archive creation failed, add today's date anyway
+            logger.warning(f"Failed to archive URL: {url}")
+            entry["urldate"] = datetime.now().strftime("%Y-%m-%d")
+
+    except Exception as e:
+        logger.error(f"Error processing URL {url}: {e}")
+        # If archiving fails, still add urldate for current date
+        if "urldate" not in entry:
+            entry["urldate"] = datetime.now().strftime("%Y-%m-%d")
+
+    return entry
+
+
+def is_wayback_url(url: str) -> bool:
+    """Check if URL is a Wayback Machine URL."""
+    return "web.archive.org" in url
+
+
+def extract_wayback_date(wayback_url: str) -> str | None:
+    """Extract date from Wayback Machine URL and format as YYYY-MM-DD.
+
+    Example: https://web.archive.org/web/20231124182109/https://example.com
+    Returns: 2023-11-24
+    """
+    try:
+        # Pattern to match wayback URLs and extract timestamp (at least 8 digits for YYYYMMDD)
+        pattern = r"web\.archive\.org/web/(\d{8,})"
+        match = re.search(pattern, wayback_url)
+
+        if match:
+            timestamp = match.group(1)
+            # Extract YYYYMMDD from timestamp (first 8 digits)
+            date_str = timestamp[:8]
+            # Validate that we have enough digits
+            if len(date_str) == 8:
+                # Convert to YYYY-MM-DD format
+                year = date_str[:4]
+                month = date_str[4:6]
+                day = date_str[6:8]
+                return f"{year}-{month}-{day}"
+
+    except Exception as e:
+        logger.error(f"Error extracting date from wayback URL {wayback_url}: {e}")
+
+    return None
+
+
+def get_wayback_snapshot(url: str, date_str: str) -> str | None:
+    """Get Wayback Machine snapshot URL for given date (YYYYMMDD format).
+
+    Uses the Wayback Machine API to check for existing snapshots.
+    """
+    try:
+        # Use Wayback Machine availability API
+        api_url = (
+            f"https://archive.org/wayback/available?url={url}&timestamp={date_str}"
+        )
+
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(api_url)
+            response.raise_for_status()
+
+            data = response.json()
+            if not isinstance(data, dict):
+                return None
+
+            archived_snapshots = data.get("archived_snapshots")
+            if not isinstance(archived_snapshots, dict):
+                return None
+
+            snapshot = archived_snapshots.get("closest")
+            if not isinstance(snapshot, dict):
+                return None
+
+            snapshot_url = snapshot.get("url")
+            if snapshot.get("available") and isinstance(snapshot_url, str):
+                # Check if the snapshot is from today
+                snapshot_date = extract_wayback_date(snapshot_url)
+                if snapshot_date == datetime.now().strftime("%Y-%m-%d"):
+                    return snapshot_url
+
+    except Exception as e:
+        logger.error(f"Error checking wayback snapshot for {url}: {e}")
+
+    return None
+
+
+def create_wayback_archive(url: str) -> str | None:
+    """Create a new Wayback Machine archive of the given URL.
+
+    Uses the /save endpoint with screenshot enabled.
+    """
+    try:
+        save_url = "https://web.archive.org/save"
+
+        # Form data based on the HTML form analysis
+        form_data = {
+            "url": url,
+            "capture_all": "0",  # Don't save error pages
+            "capture_screenshot": "1",  # Save screenshot
+        }
+
+        with httpx.Client(timeout=60.0) as client:
+            response = client.post(save_url, data=form_data, follow_redirects=True)
+
+            # The response might redirect to the archived page
+            if response.status_code == 200 and "web.archive.org" in str(response.url):
+                return str(response.url)
+
+            # If we get a different response, try to extract the archive URL from headers
+            if "Content-Location" in response.headers:
+                content_location = response.headers["Content-Location"]
+                if "web.archive.org" in content_location:
+                    return str(content_location)
+
+            # Last resort: construct expected archive URL
+            today = datetime.now().strftime("%Y%m%d%H%M%S")
+            return f"https://web.archive.org/web/{today}/{url}"
+
+    except Exception as e:
+        logger.error(f"Error creating wayback archive for {url}: {e}")
+
+    return None

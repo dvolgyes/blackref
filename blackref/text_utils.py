@@ -10,8 +10,7 @@ def fix_paragraphs(text: str) -> str:
     text = re.sub(r"(\s(?P<pattern>BACKGROUND|Background))", r"\n\n\g<pattern>", text)
     text = re.sub(r"(\s(?P<pattern>METHODS|Methods))", r"\n\n\g<pattern>", text)
     text = re.sub(r"(\s(?P<pattern>CONCLUSION|Conclusion))", r"\n\n\g<pattern>", text)
-    text = re.sub(r"(\s(?P<pattern>RESULTS|Results))", r"\n\n\g<pattern>", text)
-    return text
+    return re.sub(r"(\s(?P<pattern>RESULTS|Results))", r"\n\n\g<pattern>", text)
 
 
 def fix_wrap(
@@ -34,8 +33,7 @@ def fix_wrap(
     wrapper = textwrap.TextWrapper()
     wrapper.width = line_length - indent
     wrapper.break_long_words = False
-    wrapper.break_on_hyphen = False
-    indent_text = " " * indent
+    wrapper.break_on_hyphens = False
 
     # Fields that commonly contain long text that might be wrapped across multiple lines
     text_fields = [
@@ -90,21 +88,20 @@ def fix_wrap(
                 ):
                     # Preserve existing line breaks but clean up whitespace
                     continuation_indent = " " * (indent + 5)
-                    result = f"\n{continuation_indent}".join(
+                    return f"\n{continuation_indent}".join(
                         line.strip() for line in original_lines
                     )
-                    return result
 
     # Apply normal wrapping logic only if text is long enough
     if key.lower() in text_fields and len(text) > wrapper.width + relax:
         # Only use balanced approach if we don't have whitespace-only lines and text isn't too broken up
         if not has_whitespace_only_lines:
             # Use balanced line length approach
-            N = len(text)
-            if N < 2 * line_length:
+            text_length = len(text)
+            if 2 * line_length > text_length:
                 # Find optimal break point that minimizes line length difference
-                mid_point = N // 2
-                search_range = min(30, N // 3)  # Wider search range
+                mid_point = text_length // 2
+                search_range = min(30, text_length // 3)  # Wider search range
                 best_break = -1
                 min_length_diff = float("inf")
 
@@ -115,7 +112,7 @@ def fix_wrap(
                 ):
                     if i < len(text) and text[i] == " ":
                         first_line_len = i
-                        second_line_len = N - i - 1  # -1 for the space
+                        second_line_len = text_length - i - 1  # -1 for the space
                         length_diff = abs(first_line_len - second_line_len)
 
                         if length_diff < min_length_diff:
@@ -134,8 +131,7 @@ def fix_wrap(
 
         # Align continuation lines with opening brace position
         continuation_indent = " " * (indent + 5)
-        result = f"\n{continuation_indent}".join(map(str.strip, parts))
-        return result
+        return f"\n{continuation_indent}".join(map(str.strip, parts))
 
     if key.lower() in ["author", "editor"]:
         names = text.strip().split(" and ")
@@ -145,21 +141,20 @@ def fix_wrap(
 
         author_indent = " " * (indent + 5)
 
-        N = max(map(len, names))
-        padded_names = []
+        longest_name_length = max(map(len, names))
+        padded_names: list[str] = []
         for i, name in enumerate(names):
             if i == len(names) - 1:  # Last name, no "and"
                 padded_names.append(name)
             else:  # Add padding and "and"
-                k = N - len(name)
+                k = longest_name_length - len(name)
                 padded_names.append(name + (" " * k) + "  and")
-        result = f"\n{author_indent}".join(padded_names)
-        return result
+        return f"\n{author_indent}".join(padded_names)
 
     if key.lower() in ["keywords", "keyword"]:
-        keywords = text.strip().replace(";", ",").replace(", ", ",")
-        keywords = keywords.split(",")
-        keywords = ", ".join(map(str.strip, keywords))
+        keyword_text = text.strip().replace(";", ",").replace(", ", ",")
+        keyword_items = keyword_text.split(",")
+        keywords = ", ".join(map(str.strip, keyword_items))
 
         if len(keywords) > wrapper.width + relax:
             parts = wrapper.wrap(keywords)

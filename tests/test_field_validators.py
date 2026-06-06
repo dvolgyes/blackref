@@ -23,6 +23,15 @@ from blackref.field_validators import (
     _protect_mixed_case_words,
     fix_html_entities,
     _convert_html_entities,
+    remove_trailing_period,
+    fix_title_periods,
+    fix_booktitle_periods,
+    fix_publisher_periods,
+    fix_journal_periods,
+    _get_last_word,
+    fix_url_archiving,
+    is_wayback_url,
+    extract_wayback_date,
 )
 
 
@@ -1907,4 +1916,346 @@ class TestFixHTMLEntities:
             result = _convert_html_entities(input_text)
             assert result == expected, (
                 f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+
+class TestRemoveTrailingPeriod:
+    """Test removal of trailing periods from title fields."""
+
+    def test_remove_trailing_period_simple(self):
+        """Test basic period removal."""
+        entry = {"ID": "test", "title": "Simple Title."}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == "Simple Title"
+
+    def test_remove_trailing_period_with_closing_brace(self):
+        """Test period removal before closing brace."""
+        entry = {"ID": "test", "title": "Title with {LaTeX}."}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == "Title with {LaTeX}"
+
+    def test_remove_trailing_period_inside_braces(self):
+        """Test period removal from text inside braces."""
+        entry = {"ID": "test", "title": "{Title with Period.}"}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == "{Title with Period}"
+
+    def test_remove_trailing_period_no_period(self):
+        """Test no change when no trailing period."""
+        entry = {"ID": "test", "title": "Title without period"}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == "Title without period"
+
+    def test_remove_trailing_period_multiple_periods(self):
+        """Test only last period is removed."""
+        entry = {"ID": "test", "title": "Title with multiple... periods."}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == "Title with multiple... periods"
+
+    def test_remove_trailing_period_empty_field(self):
+        """Test handling of empty field."""
+        entry = {"ID": "test", "title": ""}
+        result = remove_trailing_period(entry, "title")
+        assert result["title"] == ""
+
+    def test_remove_trailing_period_missing_field(self):
+        """Test handling of missing field."""
+        entry = {"ID": "test", "author": "John Doe"}
+        result = remove_trailing_period(entry, "title")
+        assert "title" not in result
+
+    def test_remove_trailing_period_whitespace_handling(self):
+        """Test handling of whitespace around periods."""
+        entry = {"ID": "test", "title": "Title with trailing space. "}
+        result = remove_trailing_period(entry, "title")
+        # Should strip whitespace first, then remove period
+        assert result["title"] == "Title with trailing space"
+
+    def test_remove_trailing_period_complex_braces(self):
+        """Test complex brace scenarios."""
+        test_cases = [
+            ("Title with {LaTeX} command.", "Title with {LaTeX} command"),
+            ("{Protected Title}.", "{Protected Title}"),
+            ("Title with {multiple} {braces}.", "Title with {multiple} {braces}"),
+            ("Title ending with brace.}", "Title ending with brace}"),
+        ]
+
+        for input_title, expected in test_cases:
+            entry = {"ID": "test", "title": input_title}
+            result = remove_trailing_period(entry, "title")
+            assert result["title"] == expected, f"Failed for '{input_title}'"
+
+    def test_fix_title_periods(self):
+        """Test fix_title_periods function."""
+        entry = {"ID": "test", "title": "A Study of Machine Learning."}
+        result = fix_title_periods(entry)
+        assert result["title"] == "A Study of Machine Learning"
+
+    def test_fix_booktitle_periods(self):
+        """Test fix_booktitle_periods function."""
+        entry = {"ID": "test", "booktitle": "Proceedings of the Conference."}
+        result = fix_booktitle_periods(entry)
+        assert result["booktitle"] == "Proceedings of the Conference"
+
+    def test_fix_publisher_periods(self):
+        """Test fix_publisher_periods function."""
+        entry = {"ID": "test", "publisher": "Academic Press."}
+        result = fix_publisher_periods(entry)
+        assert result["publisher"] == "Academic Press"
+
+    def test_fix_publisher_periods_preserve_abbreviations(self):
+        """Test that publisher abbreviations are preserved."""
+        test_cases = [
+            ("Company Inc.", "Company Inc."),  # Keep Inc.
+            ("Publisher Ltd.", "Publisher Ltd."),  # Keep Ltd.
+            ("Business Corp.", "Business Corp."),  # Keep Corp.
+            ("Firm Co.", "Firm Co."),  # Keep Co.
+            ("Academic Press.", "Academic Press"),  # Remove from longer word
+            ("Springer-Verlag.", "Springer-Verlag"),  # Remove from longer word
+        ]
+
+        for input_publisher, expected in test_cases:
+            entry = {"ID": "test", "publisher": input_publisher}
+            result = fix_publisher_periods(entry)
+            assert result["publisher"] == expected, f"Failed for '{input_publisher}'"
+
+    def test_fix_publisher_periods_with_braces(self):
+        """Test publisher period handling with braces."""
+        test_cases = [
+            ("{ACM} Inc.", "{ACM} Inc."),  # Keep Inc. even with braces
+            ("Company {LLC}.", "Company {LLC}."),  # Keep LLC.
+            ("{IEEE} Press.", "{IEEE} Press"),  # Remove from longer word
+            ("Academic {Press}.", "Academic {Press}"),  # Remove from longer word
+        ]
+
+        for input_publisher, expected in test_cases:
+            entry = {"ID": "test", "publisher": input_publisher}
+            result = fix_publisher_periods(entry)
+            assert result["publisher"] == expected, f"Failed for '{input_publisher}'"
+
+    def test_fix_publisher_periods_ending_with_brace(self):
+        """Test publisher period removal with closing brace."""
+        test_cases = [
+            ("Company Inc.}", "Company Inc.}"),  # Keep Inc. with closing brace
+            ("Publisher Ltd.}", "Publisher Ltd.}"),  # Keep Ltd. with closing brace
+            ("Academic Press.}", "Academic Press}"),  # Remove from longer word
+            ("{Full Publisher}.}", "{Full Publisher}}"),  # Remove from longer word
+        ]
+
+        for input_publisher, expected in test_cases:
+            entry = {"ID": "test", "publisher": input_publisher}
+            result = fix_publisher_periods(entry)
+            assert result["publisher"] == expected, f"Failed for '{input_publisher}'"
+
+    def test_get_last_word_helper(self):
+        """Test _get_last_word helper function."""
+        test_cases = [
+            ("Academic Press", "Press"),
+            ("Company Inc", "Inc"),
+            ("Publisher {LLC}", "LLC"),
+            ("{ACM} Press", "Press"),
+            ("Single", "Single"),
+            ("", ""),
+            ("{Full}", "Full"),
+            ("Word with 123 numbers", "numbers"),
+            ("Hyphenated-Word", "HyphenatedWord"),  # Only alphabetic chars counted
+        ]
+
+        for input_text, expected in test_cases:
+            result = _get_last_word(input_text)
+            assert result == expected, (
+                f"Failed for '{input_text}': got '{result}', expected '{expected}'"
+            )
+
+    def test_fix_journal_periods(self):
+        """Test fix_journal_periods function."""
+        entry = {"ID": "test", "journal": "Journal of Computer Science."}
+        result = fix_journal_periods(entry)
+        assert result["journal"] == "Journal of Computer Science"
+
+    def test_period_removal_all_fields(self):
+        """Test period removal works for all supported fields."""
+        entry = {
+            "ID": "test",
+            "title": "Research Title.",
+            "booktitle": "Conference Proceedings.",
+            "publisher": "Publishing House.",
+            "journal": "Scientific Journal.",
+        }
+
+        result = fix_title_periods(entry)
+        result = fix_booktitle_periods(result)
+        result = fix_publisher_periods(result)
+        result = fix_journal_periods(result)
+
+        assert result["title"] == "Research Title"
+        assert result["booktitle"] == "Conference Proceedings"
+        assert result["publisher"] == "Publishing House"  # Remove from longer word
+        assert result["journal"] == "Scientific Journal"
+
+    def test_period_removal_with_protected_text(self):
+        """Test period removal preserves protected text."""
+        entry = {
+            "ID": "test",
+            "title": "Analysis of {CPU} Performance in {3D} Graphics.",
+            "booktitle": "Proceedings of {IEEE} Conference.",
+            "publisher": "{ACM} Press.",
+            "journal": "{IEEE} Transactions on Computers.",
+        }
+
+        result = fix_title_periods(entry)
+        result = fix_booktitle_periods(result)
+        result = fix_publisher_periods(result)
+        result = fix_journal_periods(result)
+
+        assert result["title"] == "Analysis of {CPU} Performance in {3D} Graphics"
+        assert result["booktitle"] == "Proceedings of {IEEE} Conference"
+        assert result["publisher"] == "{ACM} Press"  # Remove from longer word "Press"
+        assert result["journal"] == "{IEEE} Transactions on Computers"
+
+    def test_period_removal_with_publisher_abbreviations(self):
+        """Test period removal with publisher abbreviations and protected text."""
+        entry = {
+            "ID": "test",
+            "title": "Research Paper Title.",
+            "booktitle": "Conference Proceedings.",
+            "publisher": "Technology Inc.",  # Should keep abbreviation
+            "journal": "Academic Journal.",
+        }
+
+        result = fix_title_periods(entry)
+        result = fix_booktitle_periods(result)
+        result = fix_publisher_periods(result)
+        result = fix_journal_periods(result)
+
+        assert result["title"] == "Research Paper Title"
+        assert result["booktitle"] == "Conference Proceedings"
+        assert result["publisher"] == "Technology Inc."  # Keep abbreviation
+        assert result["journal"] == "Academic Journal"
+
+
+class TestURLArchiving:
+    """Test URL archiving and urldate functionality."""
+
+    def test_is_wayback_url(self):
+        """Test wayback URL detection."""
+        assert is_wayback_url(
+            "https://web.archive.org/web/20231124182109/https://example.com"
+        )
+        assert is_wayback_url(
+            "http://web.archive.org/web/20201201120000/http://test.org"
+        )
+        assert not is_wayback_url("https://example.com")
+        assert not is_wayback_url("https://archive.com/test")
+
+    def test_extract_wayback_date(self):
+        """Test date extraction from wayback URLs."""
+        test_cases = [
+            (
+                "https://web.archive.org/web/20231124182109/https://example.com",
+                "2023-11-24",
+            ),
+            ("http://web.archive.org/web/20201201120000/http://test.org", "2020-12-01"),
+            (
+                "https://web.archive.org/web/20251225235959/https://test.com",
+                "2025-12-25",
+            ),
+            ("https://example.com", None),  # Not a wayback URL
+            ("https://web.archive.org/invalid", None),  # Invalid format
+        ]
+
+        for wayback_url, expected in test_cases:
+            result = extract_wayback_date(wayback_url)
+            assert result == expected, (
+                f"Failed for '{wayback_url}': got '{result}', expected '{expected}'"
+            )
+
+    def test_fix_url_archiving_already_archived(self):
+        """Test handling of already archived URLs."""
+        entry = {
+            "ID": "test",
+            "title": "Test Article",
+            "url": "https://web.archive.org/web/20231124182109/https://example.com",
+        }
+
+        result = fix_url_archiving(entry)
+
+        # URL should remain the same, urldate should be extracted
+        assert (
+            result["url"]
+            == "https://web.archive.org/web/20231124182109/https://example.com"
+        )
+        assert result["urldate"] == "2023-11-24"
+
+    def test_fix_url_archiving_no_url(self):
+        """Test handling of entries without URL field."""
+        entry = {"ID": "test", "title": "Test Article", "author": "John Doe"}
+
+        result = fix_url_archiving(entry)
+
+        # Entry should remain unchanged
+        assert "url" not in result
+        assert "urldate" not in result
+        assert result == entry
+
+    def test_fix_url_archiving_empty_url(self):
+        """Test handling of empty URL field."""
+        entry = {"ID": "test", "title": "Test Article", "url": ""}
+
+        result = fix_url_archiving(entry)
+
+        # Entry should remain unchanged
+        assert result["url"] == ""
+        assert "urldate" not in result
+
+    def test_fix_url_archiving_whitespace_url(self):
+        """Test handling of URL field with only whitespace."""
+        entry = {"ID": "test", "title": "Test Article", "url": "   "}
+
+        result = fix_url_archiving(entry)
+
+        # Entry should remain unchanged
+        assert result["url"] == "   "
+        assert "urldate" not in result
+
+    def test_fix_url_archiving_preserves_existing_urldate(self):
+        """Test that existing urldate is updated for archived URLs."""
+        entry = {
+            "ID": "test",
+            "title": "Test Article",
+            "url": "https://web.archive.org/web/20231124182109/https://example.com",
+            "urldate": "2020-01-01",  # Should be updated
+        }
+
+        result = fix_url_archiving(entry)
+
+        assert (
+            result["url"]
+            == "https://web.archive.org/web/20231124182109/https://example.com"
+        )
+        assert result["urldate"] == "2023-11-24"  # Should be updated from archive date
+
+    def test_extract_wayback_date_edge_cases(self):
+        """Test edge cases for wayback date extraction."""
+        test_cases = [
+            # Multiple timestamps in URL (should get first one)
+            (
+                "https://web.archive.org/web/20231124182109/https://web.archive.org/web/20201201120000/example.com",
+                "2023-11-24",
+            ),
+            # Partial timestamp (12 digits instead of 14)
+            (
+                "https://web.archive.org/web/202311241821/https://example.com",
+                "2023-11-24",
+            ),
+            # Invalid date format
+            ("https://web.archive.org/web/invalid/https://example.com", None),
+            # Empty string
+            ("", None),
+        ]
+
+        for wayback_url, expected in test_cases:
+            result = extract_wayback_date(wayback_url)
+            assert result == expected, (
+                f"Failed for '{wayback_url}': got '{result}', expected '{expected}'"
             )

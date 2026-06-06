@@ -20,11 +20,11 @@ from .cli import main
 
 # Public API exports
 __all__ = [
-    "__version__",
     "__author__",
+    "__description__",
     "__email__",
     "__license__",
     "__summary__",
-    "__description__",
+    "__version__",
     "main",
 ]
