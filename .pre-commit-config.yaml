@@ -51,6 +51,15 @@ repos:
     - mdformat-ruff
     - ruff
 
+# Source: 410_uv_secure.yaml [local]
+- repo: https://github.com/owenlamont/uv-secure
+  rev: v0.17.2
+  hooks:
+  - id: uv-secure
+    args: [.]
+    always_run: true
+    pass_filenames: false
+
 # Source: 450_mypy.yaml [central]
 - repo: https://github.com/pre-commit/mirrors-mypy
   rev: v2.1.0
