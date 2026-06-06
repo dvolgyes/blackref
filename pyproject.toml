@@ -47,6 +47,7 @@ source-include = ["LICENSE.txt", "tests/**"]
 dev = [
     "coverage>=7.9.1,<8",
     "coveralls~=4.1",
+    "pre-commit>=4.6.0",
     "pytest~=8.4",
     "pytest-cov~=6.2",
     "pytest-xdist~=3.8",
