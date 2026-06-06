@@ -7,7 +7,7 @@ import html
 import re
 from datetime import datetime
 
-import httpx
+import httpx2
 import isbnlib
 from loguru import logger
 from pylatexenc.latex2text import LatexNodes2Text
@@ -1031,7 +1031,7 @@ def get_wayback_snapshot(url: str, date_str: str) -> str | None:
             f"https://archive.org/wayback/available?url={url}&timestamp={date_str}"
         )
 
-        with httpx.Client(timeout=30.0) as client:
+        with httpx2.Client(timeout=30.0) as client:
             response = client.get(api_url)
             response.raise_for_status()
 
@@ -1075,7 +1075,7 @@ def create_wayback_archive(url: str) -> str | None:
             "capture_screenshot": "1",  # Save screenshot
         }
 
-        with httpx.Client(timeout=60.0) as client:
+        with httpx2.Client(timeout=60.0) as client:
             response = client.post(save_url, data=form_data, follow_redirects=True)
 
             # The response might redirect to the archived page
