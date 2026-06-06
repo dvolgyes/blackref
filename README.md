@@ -1,10 +1,15 @@
 # Blackref: An Uncompromising BibTeX/BibLaTeX Formatter
 
-[![PyPI version](https://img.shields.io/pypi/v/blackref.svg)](https://pypi.org/project/blackref/)
-[![Python versions](https://img.shields.io/pypi/pyversions/blackref.svg)](https://pypi.org/project/blackref/)
-[![Tests](https://github.com/dvolgyes/blackref/actions/workflows/test.yml/badge.svg)](https://github.com/dvolgyes/blackref/actions/workflows/test.yml)
-[![Coverage Status](https://coveralls.io/repos/github/dvolgyes/blackref/badge.svg?branch=main)](https://coveralls.io/github/dvolgyes/blackref?branch=main)
-[![License](https://img.shields.io/pypi/l/blackref.svg)](https://github.com/dvolgyes/blackref/blob/master/LICENSE.txt)
+<p>
+  <a href="https://github.com/dvolgyes/blackref/actions/workflows/test.yml"><img alt="CI" src="https://github.com/dvolgyes/blackref/actions/workflows/test.yml/badge.svg" /></a>
+  <a href="https://coveralls.io/github/dvolgyes/blackref?branch=main"><img alt="Coverage Status" src="https://coveralls.io/repos/github/dvolgyes/blackref/badge.svg?branch=main" /></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://pypi.org/project/blackref/"><img alt="Version: 0.2.0" src="https://img.shields.io/badge/version-0.2.0-orange.svg" /></a>
+  <a href="https://pypi.org/project/blackref/"><img alt="Status: Beta" src="https://img.shields.io/badge/status-beta-yellow.svg" /></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="LICENSE.txt"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-green.svg" /></a>
+  <a href="https://www.python.org/"><img alt="Python: >=3.12,<3.15" src="https://img.shields.io/badge/python-%3E=3.12%2C%3C3.15-blue.svg" /></a>
+</p>
 
 `blackref` is a command-line tool that automatically formats your BibTeX and BibLaTeX files to be consistent, readable, and clean. Inspired by the `black` code formatter for Python, it enforces a strict, opinionated style, leaving no room for configuration. This ensures that your reference files are always perfectly formatted, allowing you to focus on the content, not the style.
 
