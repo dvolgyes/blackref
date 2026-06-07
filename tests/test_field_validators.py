@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for field_validators module."""
 
+import string
 import pytest
 from blackref.field_validators import (
     fix_isbn,
@@ -40,7 +41,7 @@ class TestFixISBN:
 
     def test_fix_isbn_valid_isbn10(self):
         """Test conversion of valid ISBN-10 to ISBN-13."""
-        entry = {"ID": "test", "isbn": "0123456789"}
+        entry = {"ID": "test", "isbn": string.digits}
         result = fix_isbn(entry)
         assert result["isbn"] == "978-0-12-345678-6"
 
@@ -483,9 +484,9 @@ class TestComprehensiveFormatting:
             entry = {"ID": "test", "title": "Test", "field": value}
             result = remove_empty_keys(entry)
             if should_remove:
-                assert "field" not in result, f"Value '{repr(value)}' should be removed"
+                assert "field" not in result, f"Value {value!r} should be removed"
             else:
-                assert "field" in result, f"Value '{repr(value)}' should be kept"
+                assert "field" in result, f"Value {value!r} should be kept"
 
     def test_latex_encoding_prevention(self):
         """Test that LaTeX commands are not double-encoded."""
@@ -515,7 +516,7 @@ class TestComprehensiveFormatting:
             "year": "2024",
             "month": "january",
             "pages": "123 - 456",
-            "isbn": "0123456789",
+            "isbn": string.digits,
             "issn": "1234 5678",
             "page": "backup-pages",  # Should be ignored if pages exists
             "abstract": "",  # Should be removed

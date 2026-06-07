@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for CLI module."""
 
-import os
+from pathlib import Path
 from click.testing import CliRunner
 from blackref.cli import main, DEFAULT_ORDER
 
@@ -64,8 +64,7 @@ class TestCLI:
 }"""
 
         with runner.isolated_filesystem():
-            with open("test.bib", "w") as f:
-                f.write(bib_content)
+            Path("test.bib").write_text(bib_content)
 
             result = runner.invoke(main, ["test.bib"], catch_exceptions=False)
             assert result.exit_code == 0
@@ -81,8 +80,7 @@ class TestCLI:
 }"""
 
         with runner.isolated_filesystem():
-            with open("input.bib", "w") as f:
-                f.write(bib_content)
+            Path("input.bib").write_text(bib_content)
 
             result = runner.invoke(
                 main, ["input.bib", "-o", "output.bib"], catch_exceptions=False
@@ -90,7 +88,7 @@ class TestCLI:
             assert result.exit_code == 0
 
             # Check that output file was created
-            assert os.path.exists("output.bib")
+            assert Path("output.bib").exists()
 
     def test_cli_write_back(self):
         """Test write-back functionality."""
@@ -102,8 +100,7 @@ class TestCLI:
 }"""
 
         with runner.isolated_filesystem():
-            with open("test.bib", "w") as f:
-                f.write(bib_content)
+            Path("test.bib").write_text(bib_content)
 
             result = runner.invoke(
                 main, ["test.bib", "--write-back"], catch_exceptions=False
@@ -111,7 +108,7 @@ class TestCLI:
             assert result.exit_code == 0
 
             # Check that file still exists (was modified in place)
-            assert os.path.exists("test.bib")
+            assert Path("test.bib").exists()
 
     def test_cli_write_back_multiple_files(self):
         """Test write-back functionality for multiple files."""
@@ -123,9 +120,8 @@ class TestCLI:
 }"""
 
         with runner.isolated_filesystem():
-            for filename in ["first.bib", "second.bib"]:
-                with open(filename, "w") as f:
-                    f.write(bib_content)
+            for filename in ("first.bib", "second.bib"):
+                Path(filename).write_text(bib_content)
 
             result = runner.invoke(
                 main,
@@ -134,8 +130,8 @@ class TestCLI:
             )
 
             assert result.exit_code == 0
-            assert os.path.exists("first.bib")
-            assert os.path.exists("second.bib")
+            assert Path("first.bib").exists()
+            assert Path("second.bib").exists()
 
     def test_cli_multiple_files_require_write_back(self):
         """Test that multiple input files require write-back mode."""
@@ -145,9 +141,8 @@ class TestCLI:
 }"""
 
         with runner.isolated_filesystem():
-            for filename in ["first.bib", "second.bib"]:
-                with open(filename, "w") as f:
-                    f.write(bib_content)
+            for filename in ("first.bib", "second.bib"):
+                Path(filename).write_text(bib_content)
 
             result = runner.invoke(main, ["first.bib", "second.bib"])
 

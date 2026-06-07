@@ -198,3 +198,4 @@ transforms_gallery.*
 .claude/settings.local.json
 
 *.bib
+.pre-commit-local-config.d/

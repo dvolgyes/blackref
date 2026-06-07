@@ -78,35 +78,36 @@ def formatter(
 
     max_key_length = 10  # Minimum alignment
     for entry in bib.entries:
+        processed_entry = entry
         if formatting_mode == "full":
-            entry = remove_empty_keys(entry)
-            entry = fix_html_entities(entry)
-            entry = fix_authors(entry, utf8_fields, latex_fields)
-            entry = fix_abstract(entry, utf8_fields, latex_fields)
-            entry = fix_isbn(entry)
-            entry = fix_issn(entry)
-            entry = fix_pages(entry)
-            entry = fix_month(entry)
+            processed_entry = remove_empty_keys(processed_entry)
+            processed_entry = fix_html_entities(processed_entry)
+            processed_entry = fix_authors(processed_entry, utf8_fields, latex_fields)
+            processed_entry = fix_abstract(processed_entry, utf8_fields, latex_fields)
+            processed_entry = fix_isbn(processed_entry)
+            processed_entry = fix_issn(processed_entry)
+            processed_entry = fix_pages(processed_entry)
+            processed_entry = fix_month(processed_entry)
             # Fix Unicode dashes in text fields
-            entry = fix_title_dashes(entry)
-            entry = fix_booktitle_dashes(entry)
-            entry = fix_abstract_dashes(entry)
+            processed_entry = fix_title_dashes(processed_entry)
+            processed_entry = fix_booktitle_dashes(processed_entry)
+            processed_entry = fix_abstract_dashes(processed_entry)
             # Fix DOI extraction from URLs
-            entry = fix_doi(entry)
+            processed_entry = fix_doi(processed_entry)
             # Fix capitalization and protect mixed-case words
-            entry = fix_title_capitalization(entry)
-            entry = fix_booktitle_capitalization(entry)
-            entry = fix_publisher_capitalization(entry)
-            entry = fix_journal_capitalization(entry)
+            processed_entry = fix_title_capitalization(processed_entry)
+            processed_entry = fix_booktitle_capitalization(processed_entry)
+            processed_entry = fix_publisher_capitalization(processed_entry)
+            processed_entry = fix_journal_capitalization(processed_entry)
             # Remove trailing periods from title fields
-            entry = fix_title_periods(entry)
-            entry = fix_booktitle_periods(entry)
-            entry = fix_publisher_periods(entry)
-            entry = fix_journal_periods(entry)
+            processed_entry = fix_title_periods(processed_entry)
+            processed_entry = fix_booktitle_periods(processed_entry)
+            processed_entry = fix_publisher_periods(processed_entry)
+            processed_entry = fix_journal_periods(processed_entry)
             # Archive URLs and add urldate (only if wayback flag is enabled)
             if wayback:
-                entry = fix_url_archiving(entry)
-        for key in entry:
+                processed_entry = fix_url_archiving(processed_entry)
+        for key in processed_entry:
             max_key_length = max(max_key_length, len(key) + len(writer.indent) + 4)
 
     # Set align_values to the calculated maximum key length (minimum 10)
@@ -120,12 +121,15 @@ def formatter(
                 # In basic mode, only apply basic text normalization
                 entry[key] = " ".join(str(entry[key]).split())
 
-    for skey in reversed(sort_fields):
-        reverse = skey[-1] == "-"
+    for sort_key in reversed(sort_fields):
+        reverse = sort_key[-1] == "-"
+        active_sort_key = sort_key
         if reverse:
-            skey = skey[:-1]
+            active_sort_key = sort_key[:-1]
         bib.entries = sorted(
-            bib.entries, key=lambda x: x.get(skey, "").lower(), reverse=reverse
+            bib.entries,
+            key=lambda x: x.get(active_sort_key, "").lower(),
+            reverse=reverse,
         )
 
     return cast(str, writer.write(bib))

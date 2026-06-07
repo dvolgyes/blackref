@@ -272,17 +272,12 @@ def _check_for_inappropriate_symbols(text: str, field: str, entry_id: str) -> No
         "Ω",
     ]
 
-    found_symbols = []
-
-    # Check for mathematical symbols
-    for symbol in math_symbols:
-        if symbol in text:
-            found_symbols.append(f"math symbol '{symbol}'")
-
-    # Check for arrows
-    for symbol in arrow_symbols:
-        if symbol in text:
-            found_symbols.append(f"arrow '{symbol}'")
+    found_symbols = [
+        f"math symbol '{symbol}'" for symbol in math_symbols if symbol in text
+    ]
+    found_symbols.extend(
+        f"arrow '{symbol}'" for symbol in arrow_symbols if symbol in text
+    )
 
     # Check for Greek letters (but be less strict - only warn if many are found)
     greek_found = [symbol for symbol in greek_symbols if symbol in text]
@@ -349,7 +344,7 @@ def remove_empty_keys(entry: BibEntry) -> BibEntry:
         if entry[key] is None:
             entry[key] = ""
         v = str(entry[key]).strip()
-        if len(v) == 0:
+        if not v:
             entry.pop(key)
     return entry
 
@@ -726,7 +721,7 @@ def fix_field_capitalization(entry: BibEntry, field: str) -> BibEntry:
 
     # Special handling for title and booktitle: if already wrapped in matching outer braces,
     # check if it came from double braces and handle appropriately
-    if field in ["title", "booktitle"] and _has_matching_outer_braces(value):
+    if field in ("title", "booktitle") and _has_matching_outer_braces(value):
         # This could be from {{...}} in source (parsed to {...}) or {...} in source
         inner_content = value[1:-1]  # Remove outer { and }
 
@@ -947,41 +942,27 @@ def fix_url_archiving(entry: BibEntry) -> BibEntry:
     if not url:
         return entry
 
-    try:
-        # Check if URL is already archived
-        if is_wayback_url(url):
-            # Extract date from wayback URL and set urldate
-            archive_date = extract_wayback_date(url)
-            if archive_date:
-                entry["urldate"] = archive_date
-            return entry
+    if is_wayback_url(url):
+        archive_date = extract_wayback_date(url)
+        if archive_date:
+            entry["urldate"] = archive_date
+        return entry
 
-        # For non-archived URLs, get or create archive
-        today = datetime.now().strftime("%Y%m%d")
+    today = datetime.now().strftime("%Y%m%d")
+    archived_url = get_wayback_snapshot(url, today)
 
-        # Check if there's already an archive from today
-        archived_url = get_wayback_snapshot(url, today)
+    if not archived_url:
+        logger.info(f"Creating Wayback Machine archive for: {url}")
+        archived_url = create_wayback_archive(url)
 
-        if not archived_url:
-            # No archive from today, create one
-            logger.info(f"Creating Wayback Machine archive for: {url}")
-            archived_url = create_wayback_archive(url)
-
-        if archived_url:
-            entry["url"] = archived_url
-            archive_date = extract_wayback_date(archived_url)
-            if archive_date:
-                entry["urldate"] = archive_date
-        else:
-            # Archive creation failed, add today's date anyway
-            logger.warning(f"Failed to archive URL: {url}")
-            entry["urldate"] = datetime.now().strftime("%Y-%m-%d")
-
-    except Exception as e:
-        logger.error(f"Error processing URL {url}: {e}")
-        # If archiving fails, still add urldate for current date
-        if "urldate" not in entry:
-            entry["urldate"] = datetime.now().strftime("%Y-%m-%d")
+    if archived_url:
+        entry["url"] = archived_url
+        archive_date = extract_wayback_date(archived_url)
+        if archive_date:
+            entry["urldate"] = archive_date
+    else:
+        logger.warning(f"Failed to archive URL: {url}")
+        entry["urldate"] = datetime.now().strftime("%Y-%m-%d")
 
     return entry
 
@@ -997,25 +978,17 @@ def extract_wayback_date(wayback_url: str) -> str | None:
     Example: https://web.archive.org/web/20231124182109/https://example.com
     Returns: 2023-11-24
     """
-    try:
-        # Pattern to match wayback URLs and extract timestamp (at least 8 digits for YYYYMMDD)
-        pattern = r"web\.archive\.org/web/(\d{8,})"
-        match = re.search(pattern, wayback_url)
+    pattern = r"web\.archive\.org/web/(\d{8,})"
+    match = re.search(pattern, wayback_url)
 
-        if match:
-            timestamp = match.group(1)
-            # Extract YYYYMMDD from timestamp (first 8 digits)
-            date_str = timestamp[:8]
-            # Validate that we have enough digits
-            if len(date_str) == 8:
-                # Convert to YYYY-MM-DD format
-                year = date_str[:4]
-                month = date_str[4:6]
-                day = date_str[6:8]
-                return f"{year}-{month}-{day}"
-
-    except Exception as e:
-        logger.error(f"Error extracting date from wayback URL {wayback_url}: {e}")
+    if match:
+        timestamp = match.group(1)
+        date_str = timestamp[:8]
+        if len(date_str) == 8:
+            year = date_str[:4]
+            month = date_str[4:6]
+            day = date_str[6:8]
+            return f"{year}-{month}-{day}"
 
     return None
 
@@ -1054,7 +1027,7 @@ def get_wayback_snapshot(url: str, date_str: str) -> str | None:
                 if snapshot_date == datetime.now().strftime("%Y-%m-%d"):
                     return snapshot_url
 
-    except Exception as e:
+    except (httpx2.HTTPError, ValueError) as e:
         logger.error(f"Error checking wayback snapshot for {url}: {e}")
 
     return None
@@ -1092,7 +1065,7 @@ def create_wayback_archive(url: str) -> str | None:
             today = datetime.now().strftime("%Y%m%d%H%M%S")
             return f"https://web.archive.org/web/{today}/{url}"
 
-    except Exception as e:
+    except httpx2.HTTPError as e:
         logger.error(f"Error creating wayback archive for {url}: {e}")
 
     return None
