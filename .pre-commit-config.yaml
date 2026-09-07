@@ -57,7 +57,7 @@ repos:
 
 # Source: 201_ruff.yaml [central]
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.16
+  rev: v0.16.6
   hooks:
 
   - id: ruff-check
@@ -106,7 +106,7 @@ repos:
 
 # Source: 250_semgrep.yaml [central]
 - repo: https://github.com/semgrep/pre-commit
-  rev: v1.165.0
+  rev: v1.176.1
   hooks:
   - id: semgrep
     language_version: python3.12
@@ -143,7 +143,7 @@ repos:
 
 # Source: 450_mypy.yaml [central]
 - repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v2.1.0
+  rev: v2.3.1
   hooks:
   - id: mypy
     exclude: ^tests/
@@ -152,12 +152,12 @@ repos:
 
 # Source: 900_shfmt.yaml [central]
 - repo: https://github.com/maxwinterstein/shfmt-py
-  rev: v4.0.0
+  rev: v4.2.0
   hooks:
   - id: shfmt
 
 # Source: 950_shellcheck.yaml [central]
 - repo: https://github.com/shellcheck-py/shellcheck-py
-  rev: v0.11.0.1
+  rev: v0.11.0.1-1
   hooks:
   - id: shellcheck
